@@ -1,0 +1,309 @@
+import { LinearGradient } from 'expo-linear-gradient';
+import { useRouter } from 'expo-router';
+import React, { useCallback, useState } from 'react';
+import { Alert, KeyboardAvoidingView, Platform, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import Svg, { Path } from 'react-native-svg';
+import { supabase } from '../lib/supabase';
+import { Colors } from '../constants/Colors';
+
+export default function StudentRegister() {
+  const router = useRouter();
+  const [name, setName] = useState('');
+  const [username, setUsername] = useState('');
+  const [registrationNumber, setRegistrationNumber] = useState('');
+  const [course, setCourse] = useState('');
+  const [phone, setPhone] = useState('');
+  const [dob, setDob] = useState('');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+
+  const handleNameChange = useCallback((text: string) => setName(text), []);
+  const handleUsernameChange = useCallback((text: string) => setUsername(text), []);
+  const handleRegistrationChange = useCallback((text: string) => setRegistrationNumber(text), []);
+  const handleCourseChange = useCallback((text: string) => setCourse(text), []);
+  const handlePhoneChange = useCallback((text: string) => setPhone(text), []);
+  const handleDobChange = useCallback((text: string) => setDob(text), []);
+  const handleEmailChange = useCallback((text: string) => setEmail(text), []);
+  const handlePasswordChange = useCallback((text: string) => setPassword(text), []);
+
+  const handleBackPress = useCallback(() => {
+    router.back();
+  }, [router]);
+
+  const handleRegister = async () => {
+    if (name && username && registrationNumber && course && phone && dob && email && password) {
+      try {
+        // Check if registration number, email, or username already exists in actual tables
+        const { data: existingStudent, error: studentError } = await supabase
+          .from('students')
+          .select('*')
+          .or(`registration_number.eq.${registrationNumber},email.eq.${email},username.eq.${username}`);
+
+        if (studentError) {
+          Alert.alert('Error', studentError.message);
+          return;
+        }
+
+        if (existingStudent && existingStudent.length > 0) {
+          Alert.alert('Error', 'Registration number, email, or username already exists.');
+          return;
+        }
+
+        // Check if there's already a pending request for this registration number
+        const { data: existingRequest, error: requestError } = await supabase
+          .from('user_requests')
+          .select('*')
+          .eq('registration_number', registrationNumber)
+          .in('status', ['pending', 'approved']);
+
+        if (requestError) {
+          Alert.alert('Error', requestError.message);
+          return;
+        }
+
+        if (existingRequest && existingRequest.length > 0) {
+          const request = existingRequest[0];
+          if (request.status === 'pending') {
+            Alert.alert('Request Pending', 'Your registration request is already pending admin approval.');
+          } else if (request.status === 'approved') {
+            Alert.alert('Already Approved', 'Your registration has been approved. Please try logging in.');
+          }
+          return;
+        }
+
+        // Insert registration request
+        const { error: insertError } = await supabase
+          .from('user_requests')
+          .insert([
+            {
+              user_name: name,
+              username: username, // Ensure username is properly stored
+              user_type: 'Student',
+              registration_number: registrationNumber,
+              email: email,
+              course: course,
+              password: password,
+              phone: phone,
+              dob: dob,
+              status: 'pending',
+              details: `Student registration request for ${course} - Username: ${username}`
+            }
+          ]);
+
+        if (insertError) {
+          Alert.alert('Error', insertError.message);
+        } else {
+          Alert.alert('Request Submitted', `Thank you, ${name}! Your registration request has been submitted and is pending admin approval. You will be notified once it's processed.`);
+          router.replace('./student-login');
+        }
+      } catch (error) {
+        console.error('Registration error:', error);
+        Alert.alert('Error', 'An unexpected error occurred. Please try again.');
+      }
+    } else {
+      Alert.alert('Error', 'Please fill all fields.');
+    }
+  };
+
+  return (
+    <View style={{ flex: 1 }}>
+      {/* Back Button - Top Left */}
+      <View style={{ position: 'absolute', top: 50, left: 20, zIndex: 10 }}>
+        <TouchableOpacity
+          style={{
+            backgroundColor: Colors.secondary,
+            paddingVertical: 10,
+            paddingHorizontal: 16,
+            borderRadius: 20,
+            elevation: 4,
+            shadowColor: Colors.accent,
+            shadowOffset: { width: 0, height: 2 },
+            shadowOpacity: 0.3,
+            shadowRadius: 4,
+          }}
+          onPress={() => router.back()}
+        >
+          <Text style={{ color: 'white', fontSize: 16, fontWeight: 'bold', fontFamily: 'Roboto' }}>← Back</Text>
+        </TouchableOpacity>
+      </View>
+
+      <LinearGradient
+        colors={[Colors.white, Colors.backgroundLight]}
+        style={{ flex: 1 }}
+        start={{ x: 0.5, y: 0 }}
+        end={{ x: 0.5, y: 1 }}
+      >
+        <Svg
+          height="100%"
+          width="100%"
+          style={{ position: 'absolute', top: '20%' }}
+          viewBox="0 0 100 100"
+        >
+          <Path
+            d="M0,20 C30,40 70,0 100,20 L100,100 L0,100 Z"
+            fill={Colors.backgroundLight}
+          />
+        </Svg>
+        <KeyboardAvoidingView
+          style={{ flex: 1 }}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          keyboardVerticalOffset={40}
+        >
+          <ScrollView contentContainerStyle={{ flexGrow: 1, justifyContent: 'center', alignItems: 'center', padding: 24 }}>
+            <Text style={{
+              fontSize: 40,
+              color: 'Colors.textSecondary',
+              fontFamily: 'Roboto',
+              marginBottom: 32,
+              fontWeight: 'bold',
+              textShadowColor: 'black',
+              textShadowOffset: { width: 3, height: 3 },
+              textShadowRadius: 3
+            }}>
+              Student Register
+            </Text>
+            <TextInput
+              placeholder="Name"
+              placeholderTextColor="Colors.textLight"
+              value={name}
+              onChangeText={setName}
+              style={{
+                width: 280,
+                backgroundColor: 'Colors.secondary',
+                color: 'white',
+                borderRadius: 8,
+                padding: 12,
+                marginBottom: 16,
+                fontSize: 16,
+              }}
+            />
+            <TextInput
+              placeholder="Username"
+              placeholderTextColor="Colors.textLight"
+              value={username}
+              onChangeText={setUsername}
+              style={{
+                width: 280,
+                backgroundColor: 'Colors.secondary',
+                color: 'white',
+                borderRadius: 8,
+                padding: 12,
+                marginBottom: 16,
+                fontSize: 16,
+              }}
+              autoCapitalize="none"
+            />
+            <TextInput
+              placeholder="Registration Number"
+              placeholderTextColor="Colors.textLight"
+              value={registrationNumber}
+              onChangeText={setRegistrationNumber}
+              style={{
+                width: 280,
+                backgroundColor: 'Colors.secondary',
+                color: 'white',
+                borderRadius: 8,
+                padding: 12,
+                marginBottom: 16,
+                fontSize: 16,
+              }}
+              autoCapitalize="none"
+            />
+            <TextInput
+              placeholder="Course"
+              placeholderTextColor="Colors.textLight"
+              value={course}
+              onChangeText={setCourse}
+              style={{
+                width: 280,
+                backgroundColor: 'Colors.secondary',
+                color: 'white',
+                borderRadius: 8,
+                padding: 12,
+                marginBottom: 16,
+                fontSize: 16,
+              }}
+            />
+            <TextInput
+              placeholder="Phone Number"
+              placeholderTextColor="Colors.textLight"
+              value={phone}
+              onChangeText={setPhone}
+              style={{
+                width: 280,
+                backgroundColor: 'Colors.secondary',
+                color: 'white',
+                borderRadius: 8,
+                padding: 12,
+                marginBottom: 16,
+                fontSize: 16,
+              }}
+              keyboardType="phone-pad"
+            />
+            <TextInput
+              placeholder="Date of Birth (YYYY-MM-DD)"
+              placeholderTextColor="Colors.textLight"
+              value={dob}
+              onChangeText={setDob}
+              style={{
+                width: 280,
+                backgroundColor: 'Colors.secondary',
+                color: 'white',
+                borderRadius: 8,
+                padding: 12,
+                marginBottom: 16,
+                fontSize: 16,
+              }}
+            />
+            <TextInput
+              placeholder="Email"
+              placeholderTextColor="Colors.textLight"
+              value={email}
+              onChangeText={setEmail}
+              style={{
+                width: 280,
+                backgroundColor: 'Colors.secondary',
+                color: 'white',
+                borderRadius: 8,
+                padding: 12,
+                marginBottom: 16,
+                fontSize: 16,
+              }}
+              keyboardType="email-address"
+              autoCapitalize="none"
+            />
+            <TextInput
+              placeholder="Password"
+              placeholderTextColor="Colors.textLight"
+              value={password}
+              onChangeText={setPassword}
+              style={{
+                width: 280,
+                backgroundColor: 'Colors.secondary',
+                color: 'white',
+                borderRadius: 8,
+                padding: 12,
+                marginBottom: 24,
+                fontSize: 16,
+              }}
+              secureTextEntry
+            />
+            <TouchableOpacity
+              onPress={handleRegister}
+              style={{
+                backgroundColor: 'Colors.secondary',
+                paddingVertical: 14,
+                paddingHorizontal: 40,
+                borderRadius: 8,
+                marginBottom: 24,
+              }}
+            >
+              <Text style={{ color: 'white', fontSize: 18, fontWeight: 'bold' }}>Register</Text>
+            </TouchableOpacity>
+          </ScrollView>
+        </KeyboardAvoidingView>
+      </LinearGradient>
+    </View>
+  );
+}
+

@@ -1,0 +1,532 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useRouter } from 'expo-router';
+import { useCallback, useState } from 'react';
+import {
+    Alert,
+    ImageBackground,
+    KeyboardAvoidingView,
+    Platform,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View
+} from 'react-native';
+import { supabase } from '../lib/supabase';
+
+export default function PeerListenerRegister() {
+  const router = useRouter();
+  const [formData, setFormData] = useState({
+    name: '',
+    email: '',
+    username: '',
+    password: '',
+    confirmPassword: '',
+    studentId: '',
+    phone: '',
+    course: '',
+    year: '',
+  });
+  const [isLoading, setIsLoading] = useState(false);
+
+  const updateFormData = useCallback((field: string, value: string) => {
+    setFormData(prev => ({ ...prev, [field]: value }));
+  }, []);
+
+  const handleBackPress = useCallback(() => {
+    router.back();
+  }, [router]);
+
+  const validateForm = () => {
+    const { name, email, username, password, confirmPassword, studentId, phone, course, year } = formData;
+
+    if (!name.trim() || !email.trim() || !username.trim() || !password.trim() ||
+        !studentId.trim() || !phone.trim() || !course.trim() || !year.trim()) {
+      Alert.alert('Error', 'Please fill in all required fields');
+      return false;
+    }
+
+    if (password !== confirmPassword) {
+      Alert.alert('Error', 'Passwords do not match');
+      return false;
+    }
+
+    if (password.length < 6) {
+      Alert.alert('Error', 'Password must be at least 6 characters long');
+      return false;
+    }
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      Alert.alert('Error', 'Please enter a valid email address');
+      return false;
+    }
+
+    return true;
+  };
+
+  const handleRegister = async () => {
+    if (!validateForm()) return;
+
+    setIsLoading(true);
+
+    try {
+      // Check if peer_listeners table exists and if username or email already exists
+      const { data: existingUsers, error: checkError } = await supabase
+        .from('peer_listeners')
+        .select('username, email')
+        .or(`username.eq.${formData.username},email.eq.${formData.email}`);
+
+      if (checkError) {
+        console.error('Error checking existing users:', checkError);
+
+        // If table doesn't exist, show specific error message with detailed instructions
+        if (checkError.code === '42P01') {
+          Alert.alert(
+            '🔧 Database Setup Required',
+            'The peer listener system is not set up yet. The database table "peer_listeners" does not exist.\n\n📋 What you can do:\n• Contact your administrator\n• Ask them to run the database setup\n• Try again after setup is complete',
+            [
+              {
+                text: '📋 Setup Guide',
+                onPress: () => {
+                  Alert.alert(
+                    '👨‍💻 Administrator Instructions',
+                    'To fix this issue, the administrator needs to:\n\n1️⃣ Go to Supabase Dashboard\n2️⃣ Open SQL Editor\n3️⃣ Run this SQL command:\n\nCREATE TABLE IF NOT EXISTS peer_listeners (\n  id SERIAL PRIMARY KEY,\n  name TEXT NOT NULL,\n  email TEXT UNIQUE NOT NULL,\n  username TEXT UNIQUE NOT NULL,\n  student_id TEXT NOT NULL,\n  phone TEXT,\n  course TEXT,\n  year TEXT,\n  status TEXT DEFAULT \'pending\',\n  created_at TIMESTAMP DEFAULT NOW(),\n  updated_at TIMESTAMP DEFAULT NOW()\n);',
+                    [{ text: 'Got it' }]
+                  );
+                }
+              },
+              {
+                text: 'OK',
+                style: 'cancel'
+              }
+            ]
+          );
+          return;
+        }
+
+        Alert.alert('❌ Connection Error', 'Failed to connect to the database. Please check your internet connection and try again.');
+        return;
+      }
+
+      if (existingUsers && existingUsers.length > 0) {
+        const existingUser = existingUsers[0];
+        if (existingUser.username === formData.username) {
+          Alert.alert('Error', 'Username already exists. Please choose a different username.');
+          return;
+        }
+        if (existingUser.email === formData.email) {
+          Alert.alert('Error', 'Email already registered. Please use a different email.');
+          return;
+        }
+      }
+
+      // Register new peer listener
+      const { data, error } = await supabase
+        .from('peer_listeners')
+        .insert([
+          {
+            name: formData.name.trim(),
+            email: formData.email.trim().toLowerCase(),
+            username: formData.username.trim(),
+            password: formData.password, // Add password field
+            student_id: formData.studentId.trim(),
+            phone: formData.phone.trim(),
+            course: formData.course.trim(),
+            year: formData.year.trim(),
+            status: 'pending' // Admin needs to approve
+          }
+        ])
+        .select();
+
+      if (error) {
+        console.error('Registration error:', error);
+
+        // Handle specific database errors
+        if (error.code === '42P01') {
+          Alert.alert(
+            '🔧 Database Setup Required',
+            'The peer listener system is not configured yet. Please contact your administrator to set up the database tables.',
+            [
+              {
+                text: '📋 Quick Fix',
+                onPress: () => {
+                  Alert.alert(
+                    '⚡ Quick Database Setup',
+                    'Administrator: Create the table with this SQL:\n\nCREATE TABLE peer_listeners (\n  id SERIAL PRIMARY KEY,\n  name TEXT NOT NULL,\n  email TEXT UNIQUE NOT NULL,\n  username TEXT UNIQUE NOT NULL,\n  student_id TEXT NOT NULL,\n  phone TEXT,\n  course TEXT,\n  year TEXT,\n  status TEXT DEFAULT \'pending\',\n  created_at TIMESTAMP DEFAULT NOW()\n);',
+                    [{ text: 'Copy to Clipboard' }, { text: 'OK' }]
+                  );
+                }
+              },
+              { text: 'OK' }
+            ]
+          );
+        } else if (error.code === '42501') {
+          Alert.alert(
+            '🔒 Permission Error',
+            'Database security policy is blocking registration. Administrator needs to fix table permissions.',
+            [
+              {
+                text: '🔧 Fix Instructions',
+                onPress: () => {
+                  Alert.alert(
+                    '⚡ Quick Permission Fix',
+                    'Administrator: Run this SQL command in Supabase:\n\nALTER TABLE peer_listeners DISABLE ROW LEVEL SECURITY;\n\nOr create proper RLS policies for public registration.',
+                    [{ text: 'Got it' }]
+                  );
+                }
+              },
+              { text: 'OK' }
+            ]
+          );
+        } else if (error.code === '23505') {
+          Alert.alert('❌ Already Exists', 'Username or email already exists. Please use different credentials.');
+        } else {
+          Alert.alert('❌ Registration Failed', `Error: ${error.message}\n\nPlease try again or contact support.`);
+        }
+        return;
+      }
+
+      // Store registration data locally for backup
+      await AsyncStorage.setItem('pendingPeerListener', JSON.stringify(formData));
+
+      Alert.alert(
+        'Registration Submitted!',
+        'Your application has been submitted successfully. You will receive an email confirmation and training details within 2-3 business days.\n\nStatus: Pending Admin Approval',
+        [
+          {
+            text: 'OK',
+            onPress: () => router.push('/select')
+          }
+        ]
+      );
+
+    } catch (error) {
+      console.error('Registration error:', error);
+      Alert.alert('Error', 'Registration failed. Please check your connection and try again.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  return (
+    <ImageBackground
+      source={null} // Removed the image source
+      style={{ flex: 1, backgroundColor: '#D8BFD8' }} // Set light purple background
+      resizeMode="cover"
+    >
+      <KeyboardAvoidingView
+        style={styles.keyboardView}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      >
+        {/* Header */}
+        <View style={styles.header}>
+          <TouchableOpacity
+            style={styles.backButton}
+            onPress={() => router.back()}
+          >
+            <Text style={styles.backButtonText}>← Back</Text>
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>Peer Listener Registration</Text>
+        </View>
+
+        <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
+          <View style={styles.formContainer}>
+            <View style={styles.formCard}>
+              <Text style={styles.title}>Join as Peer Listener</Text>
+
+              {/* Personal Information */}
+              <Text style={styles.sectionTitle}>Personal Information</Text>
+
+              <View style={styles.inputContainer}>
+                <Text style={styles.inputLabel}>Full Name *</Text>
+                <TextInput
+                  style={styles.input}
+                  value={formData.name}
+                  onChangeText={(value) => updateFormData('name', value)}
+                  placeholder="Enter your full name"
+                  placeholderTextColor="#a8a8a8"
+                  editable={!isLoading}
+                />
+              </View>
+
+              <View style={styles.inputContainer}>
+                <Text style={styles.inputLabel}>Email Address *</Text>
+                <TextInput
+                  style={styles.input}
+                  value={formData.email}
+                  onChangeText={(value) => updateFormData('email', value)}
+                  placeholder="Enter your email"
+                  placeholderTextColor="#a8a8a8"
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                  editable={!isLoading}
+                />
+              </View>
+
+              <View style={styles.inputContainer}>
+                <Text style={styles.inputLabel}>Phone Number *</Text>
+                <TextInput
+                  style={styles.input}
+                  value={formData.phone}
+                  onChangeText={(value) => updateFormData('phone', value)}
+                  placeholder="Enter your phone number"
+                  placeholderTextColor="#a8a8a8"
+                  keyboardType="phone-pad"
+                  editable={!isLoading}
+                />
+              </View>
+
+              <View style={styles.inputContainer}>
+                <Text style={styles.inputLabel}>Username *</Text>
+                <TextInput
+                  style={styles.input}
+                  value={formData.username}
+                  onChangeText={(value) => updateFormData('username', value)}
+                  placeholder="Choose a username"
+                  placeholderTextColor="#a8a8a8"
+                  autoCapitalize="none"
+                  editable={!isLoading}
+                />
+              </View>
+
+              <View style={styles.inputContainer}>
+                <Text style={styles.inputLabel}>Password *</Text>
+                <TextInput
+                  style={styles.input}
+                  value={formData.password}
+                  onChangeText={(value) => updateFormData('password', value)}
+                  placeholder="Create a password (min 6 characters)"
+                  placeholderTextColor="#a8a8a8"
+                  secureTextEntry
+                  editable={!isLoading}
+                />
+              </View>
+
+              <View style={styles.inputContainer}>
+                <Text style={styles.inputLabel}>Confirm Password *</Text>
+                <TextInput
+                  style={styles.input}
+                  value={formData.confirmPassword}
+                  onChangeText={(value) => updateFormData('confirmPassword', value)}
+                  placeholder="Confirm your password"
+                  placeholderTextColor="#a8a8a8"
+                  secureTextEntry
+                  editable={!isLoading}
+                />
+              </View>
+
+              <View style={styles.inputContainer}>
+                <Text style={styles.inputLabel}>Student ID *</Text>
+                <TextInput
+                  style={styles.input}
+                  value={formData.studentId}
+                  onChangeText={(value) => updateFormData('studentId', value)}
+                  placeholder="Enter your student ID"
+                  placeholderTextColor="#a8a8a8"
+                  editable={!isLoading}
+                />
+              </View>
+
+              <View style={styles.inputContainer}>
+                <Text style={styles.inputLabel}>Course/Program *</Text>
+                <TextInput
+                  style={styles.input}
+                  value={formData.course}
+                  onChangeText={(value) => updateFormData('course', value)}
+                  placeholder="Enter your course or program"
+                  placeholderTextColor="#a8a8a8"
+                  editable={!isLoading}
+                />
+              </View>
+
+              <View style={styles.inputContainer}>
+                <Text style={styles.inputLabel}>Year of Study *</Text>
+                <TextInput
+                  style={styles.input}
+                  value={formData.year}
+                  onChangeText={(value) => updateFormData('year', value)}
+                  placeholder="e.g., 2nd Year, Final Year"
+                  placeholderTextColor="#a8a8a8"
+                  editable={!isLoading}
+                />
+              </View>
+
+              <TouchableOpacity
+                style={[styles.registerButton, { opacity: isLoading ? 0.7 : 1 }]}
+                onPress={handleRegister}
+                disabled={isLoading}
+              >
+                <Text style={styles.registerButtonText}>
+                  {isLoading ? 'Submitting Application...' : 'Submit Application'}
+                </Text>
+              </TouchableOpacity>
+
+              <View style={styles.loginContainer}>
+                <Text style={styles.loginText}>Already registered? </Text>
+                <TouchableOpacity
+                  onPress={() => router.push('/peer-listener-login')}
+                  disabled={isLoading}
+                >
+                  <Text style={styles.loginLink}>Login here</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </ImageBackground>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+  },
+  keyboardView: {
+    flex: 1,
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingTop: 50,
+    paddingHorizontal: 20,
+    paddingBottom: 15,
+    backgroundColor: 'rgba(136, 216, 192, 0.9)',
+  },
+  backButton: {
+    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+    paddingVertical: 8,
+    paddingHorizontal: 15,
+    borderRadius: 20,
+    marginRight: 15,
+  },
+  backButtonText: {
+    color: '#2d5a3d',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  headerTitle: {
+    color: '#2d5a3d',
+    fontSize: 20,
+    fontWeight: 'bold',
+    flex: 1,
+  },
+  scrollView: {
+    flex: 1,
+  },
+  formContainer: {
+    padding: 20,
+  },
+  formCard: {
+    backgroundColor: 'rgba(255, 255, 255, 0.95)',
+    borderRadius: 20,
+    padding: 25,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 10,
+  },
+  title: {
+    fontSize: 28,
+    fontWeight: 'bold',
+    color: '#2d5a3d',
+    textAlign: 'center',
+    marginBottom: 10,
+  },
+  subtitle: {
+    fontSize: 16,
+    color: '#6b7c93',
+    textAlign: 'center',
+    marginBottom: 25,
+    lineHeight: 22,
+  },
+  sectionTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#2d5a3d',
+    marginTop: 20,
+    marginBottom: 15,
+    borderBottomWidth: 2,
+    borderBottomColor: '#88d8c0',
+    paddingBottom: 5,
+  },
+  inputContainer: {
+    marginBottom: 15,
+  },
+  inputLabel: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#2d5a3d',
+    marginBottom: 8,
+  },
+  input: {
+    borderWidth: 2,
+    borderColor: '#88d8c0',
+    borderRadius: 12,
+    paddingHorizontal: 15,
+    paddingVertical: 12,
+    fontSize: 16,
+    backgroundColor: '#f9f9f9',
+    color: '#333',
+  },
+  textArea: {
+    height: 80,
+    textAlignVertical: 'top',
+  },
+  registerButton: {
+    backgroundColor: '#88d8c0',
+    paddingVertical: 16,
+    borderRadius: 15,
+    alignItems: 'center',
+    marginTop: 20,
+    elevation: 3,
+    shadowColor: '#b2dfdb',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+  },
+  registerButtonText: {
+    color: '#2d5a3d',
+    fontSize: 18,
+    fontWeight: 'bold',
+  },
+  loginContainer: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginTop: 15,
+  },
+  loginText: {
+    fontSize: 16,
+    color: '#6b7c93',
+  },
+  loginLink: {
+    fontSize: 16,
+    color: '#88d8c0',
+    fontWeight: 'bold',
+    textDecorationLine: 'underline',
+  },
+  infoContainer: {
+    marginTop: 20,
+    marginBottom: 15,
+    padding: 15,
+    backgroundColor: 'rgba(136, 216, 192, 0.1)',
+    borderRadius: 12,
+    borderLeftWidth: 4,
+    borderLeftColor: '#88d8c0',
+  },
+  infoTitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#2d5a3d',
+    marginBottom: 8,
+  },
+  infoText: {
+    fontSize: 14,
+    color: '#4a6b5a',
+    lineHeight: 20,
+  },
+});
