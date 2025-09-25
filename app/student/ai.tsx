@@ -16,7 +16,6 @@ import {
 import {
   AIChatMessage,
   clearChatHistoryFromSupabase,
-  loadChatHistoryFromSupabase,
   saveConversationPair,
   syncChatHistory
 } from '../../lib/aiChatStorage';
@@ -84,13 +83,13 @@ const AI = () => {
   const loadAndSyncChatHistory = async () => {
     try {
       setIsSyncing(true);
-      
+
       // First load local chat history
       const localHistory = await loadLocalChatHistory();
-      
+
       // Try to sync with Supabase
       const syncedMessages = await syncChatHistory(localHistory);
-      
+
       if (syncedMessages.length > 0) {
         setMessages(syncedMessages);
         await saveChatHistoryLocally(syncedMessages);
@@ -98,7 +97,7 @@ const AI = () => {
         // If no synced messages, use local history
         setMessages(localHistory);
       }
-      
+
       console.log(`Loaded ${syncedMessages.length || localHistory.length} messages`);
     } catch (error) {
       console.error('Error loading and syncing chat history:', error);
@@ -218,10 +217,10 @@ const AI = () => {
 
       const finalMessages = [...newMessages, aiMessage];
       setMessages(finalMessages);
-      
+
       // Save locally first for immediate access
       await saveChatHistoryLocally(finalMessages);
-      
+
       // Save conversation pair to Supabase for cross-device sync
       try {
         const success = await saveConversationPair(userMessage, aiMessage);
@@ -263,13 +262,13 @@ const AI = () => {
           onPress: async () => {
             try {
               setIsSyncing(true);
-              
+
               // Clear from Supabase
               const supabaseCleared = await clearChatHistoryFromSupabase();
-              
+
               // Clear locally
               await AsyncStorage.removeItem('chatHistory');
-              
+
               // Reset to initial message
               const initialMessage: Message = {
                 id: '1',
@@ -277,9 +276,9 @@ const AI = () => {
                 isUser: false,
                 timestamp: new Date()
               };
-              
+
               setMessages([initialMessage]);
-              
+
               if (supabaseCleared) {
                 Alert.alert('Success', 'Chat history cleared from all devices');
               } else {

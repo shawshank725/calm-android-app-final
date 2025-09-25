@@ -13,12 +13,19 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import { supabase } from '../../lib/supabase';
+import {
+  AdminPrompt,
+  deleteAdminPromptFromSupabase,
+  loadAdminPromptsFromSupabase,
+  saveAdminPromptToSupabase,
+  syncAdminPrompts,
+  updateAdminPromptInSupabase,
+  clearAllAdminPromptsFromSupabase
+} from '../../lib/aiChatStorage';
 
-interface CustomPrompt {
-  id: string;
-  question: string;
-  answer: string;
-}
+// Using AdminPrompt from aiChatStorage.ts for consistency
+type CustomPrompt = AdminPrompt;
 
 interface AISettings {
   name: string;
@@ -43,6 +50,8 @@ const AdminAI = () => {
   const [searchHistory, setSearchHistory] = useState<SearchHistory[]>([]);
   const [activeTab, setActiveTab] = useState<'prompts' | 'history' | 'settings'>('prompts');
   const [refreshing, setRefreshing] = useState(false);
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [syncStatus, setSyncStatus] = useState<string>('');
   const [aiSettings, setAISettings] = useState<AISettings>({
     name: 'AI Assistant',
     personality: 'Helpful and friendly',
@@ -51,10 +60,10 @@ const AdminAI = () => {
   });
 
   useEffect(() => {
-    loadCustomPrompts();
+    loadAndSyncCustomPrompts();
     loadAISettings();
     loadSearchHistory();
-    // Auto-load 1000 common Q&As if no custom prompts exist
+    // Auto-load common Q&As if no custom prompts exist
     initializeCommonPrompts();
   }, []);
 
@@ -106,15 +115,56 @@ const AdminAI = () => {
     );
   };
 
-  const loadCustomPrompts = async () => {
+  const loadAndSyncCustomPrompts = async () => {
+    try {
+      setIsSyncing(true);
+      setSyncStatus('Loading prompts...');
+      
+      // First load local prompts
+      const localPrompts = await loadLocalCustomPrompts();
+      
+      // Try to sync with Supabase
+      setSyncStatus('Syncing with cloud...');
+      const syncedPrompts = await syncAdminPrompts(localPrompts);
+      
+      if (syncedPrompts.length > 0) {
+        setCustomPrompts(syncedPrompts);
+        await saveCustomPromptsLocally(syncedPrompts);
+        setSyncStatus(`Synced ${syncedPrompts.length} prompts successfully`);
+      } else {
+        // If no synced prompts, use local prompts
+        setCustomPrompts(localPrompts);
+        setSyncStatus('Using local prompts only');
+      }
+      
+      console.log(`Loaded ${syncedPrompts.length || localPrompts.length} admin prompts`);
+    } catch (error) {
+      console.error('Error loading and syncing prompts:', error);
+      // Fallback to local prompts only
+      const localPrompts = await loadLocalCustomPrompts();
+      setCustomPrompts(localPrompts);
+      setSyncStatus('Sync failed - using local prompts');
+    } finally {
+      setIsSyncing(false);
+      setTimeout(() => setSyncStatus(''), 3000); // Clear status after 3 seconds
+    }
+  };
+
+  const loadLocalCustomPrompts = async (): Promise<CustomPrompt[]> => {
     try {
       const stored = await AsyncStorage.getItem('customPrompts');
       if (stored) {
-        setCustomPrompts(JSON.parse(stored));
+        const prompts = JSON.parse(stored);
+        return prompts.map((prompt: any) => ({
+          ...prompt,
+          created_at: prompt.created_at ? new Date(prompt.created_at) : new Date(),
+          updated_at: prompt.updated_at ? new Date(prompt.updated_at) : new Date()
+        }));
       }
     } catch (error) {
-      console.error('Error loading custom prompts:', error);
+      console.error('Error loading local custom prompts:', error);
     }
+    return [];
   };
 
   const loadAISettings = async () => {
@@ -128,9 +178,17 @@ const AdminAI = () => {
     }
   };
 
-  const saveCustomPrompts = async (prompts: CustomPrompt[]) => {
+  const saveCustomPromptsLocally = async (prompts: CustomPrompt[]) => {
     try {
       await AsyncStorage.setItem('customPrompts', JSON.stringify(prompts));
+    } catch (error) {
+      console.error('Error saving custom prompts locally:', error);
+    }
+  };
+
+  const saveCustomPrompts = async (prompts: CustomPrompt[]) => {
+    try {
+      await saveCustomPromptsLocally(prompts);
       setCustomPrompts(prompts);
     } catch (error) {
       console.error('Error saving custom prompts:', error);
@@ -148,34 +206,72 @@ const AdminAI = () => {
     }
   };
 
-  const addOrUpdatePrompt = () => {
+  const addOrUpdatePrompt = async () => {
     if (!newQuestion.trim() || !newAnswer.trim()) {
       Alert.alert('Error', 'Please fill in both question and answer fields');
       return;
     }
 
-    if (editingPrompt) {
-      // Update existing prompt
-      const updatedPrompts = customPrompts.map(prompt =>
-        prompt.id === editingPrompt.id
-          ? { ...prompt, question: newQuestion.trim(), answer: newAnswer.trim() }
-          : prompt
-      );
-      saveCustomPrompts(updatedPrompts);
-      setEditingPrompt(null);
-    } else {
-      // Add new prompt
-      const newPrompt: CustomPrompt = {
-        id: Date.now().toString(),
-        question: newQuestion.trim(),
-        answer: newAnswer.trim(),
-      };
-      saveCustomPrompts([...customPrompts, newPrompt]);
-    }
+    setIsSyncing(true);
+    setSyncStatus('Saving prompt...');
 
-    setNewQuestion('');
-    setNewAnswer('');
-    Alert.alert('Success', `Prompt ${editingPrompt ? 'updated' : 'added'} successfully!`);
+    try {
+      if (editingPrompt) {
+        // Update existing prompt
+        const updatedPrompt: CustomPrompt = {
+          ...editingPrompt,
+          question: newQuestion.trim(),
+          answer: newAnswer.trim(),
+          updated_at: new Date()
+        };
+
+        // Save to Supabase
+        const supabaseSuccess = await updateAdminPromptInSupabase(updatedPrompt);
+        
+        // Update local state
+        const updatedPrompts = customPrompts.map(prompt =>
+          prompt.id === editingPrompt.id ? updatedPrompt : prompt
+        );
+        
+        setCustomPrompts(updatedPrompts);
+        await saveCustomPromptsLocally(updatedPrompts);
+        
+        setSyncStatus(supabaseSuccess ? 'Updated successfully!' : 'Updated locally (sync pending)');
+        setEditingPrompt(null);
+      } else {
+        // Add new prompt
+        const newPrompt: CustomPrompt = {
+          id: Date.now().toString(),
+          question: newQuestion.trim(),
+          answer: newAnswer.trim(),
+          category: 'general',
+          created_at: new Date(),
+          updated_at: new Date(),
+          is_active: true
+        };
+
+        // Save to Supabase
+        const supabaseSuccess = await saveAdminPromptToSupabase(newPrompt);
+        
+        // Update local state
+        const updatedPrompts = [...customPrompts, newPrompt];
+        setCustomPrompts(updatedPrompts);
+        await saveCustomPromptsLocally(updatedPrompts);
+        
+        setSyncStatus(supabaseSuccess ? 'Added successfully!' : 'Added locally (sync pending)');
+      }
+
+      setNewQuestion('');
+      setNewAnswer('');
+      Alert.alert('Success', `Prompt ${editingPrompt ? 'updated' : 'added'} successfully!`);
+    } catch (error) {
+      console.error('Error saving prompt:', error);
+      setSyncStatus('Save failed');
+      Alert.alert('Error', 'Failed to save prompt. Please try again.');
+    } finally {
+      setIsSyncing(false);
+      setTimeout(() => setSyncStatus(''), 3000);
+    }
   };
 
   const editPrompt = (prompt: CustomPrompt) => {
@@ -187,15 +283,35 @@ const AdminAI = () => {
   const deletePrompt = (id: string) => {
     Alert.alert(
       'Delete Prompt',
-      'Are you sure you want to delete this prompt?',
+      'Are you sure you want to delete this prompt? This will remove it from all devices.',
       [
         { text: 'Cancel', style: 'cancel' },
         {
           text: 'Delete',
           style: 'destructive',
-          onPress: () => {
-            const updatedPrompts = customPrompts.filter(prompt => prompt.id !== id);
-            saveCustomPrompts(updatedPrompts);
+          onPress: async () => {
+            setIsSyncing(true);
+            setSyncStatus('Deleting prompt...');
+            
+            try {
+              // Delete from Supabase
+              const supabaseSuccess = await deleteAdminPromptFromSupabase(id);
+              
+              // Update local state
+              const updatedPrompts = customPrompts.filter(prompt => prompt.id !== id);
+              setCustomPrompts(updatedPrompts);
+              await saveCustomPromptsLocally(updatedPrompts);
+              
+              setSyncStatus(supabaseSuccess ? 'Deleted successfully!' : 'Deleted locally (sync pending)');
+              Alert.alert('Success', 'Prompt deleted successfully!');
+            } catch (error) {
+              console.error('Error deleting prompt:', error);
+              setSyncStatus('Delete failed');
+              Alert.alert('Error', 'Failed to delete prompt. Please try again.');
+            } finally {
+              setIsSyncing(false);
+              setTimeout(() => setSyncStatus(''), 3000);
+            }
           },
         },
       ]
@@ -211,13 +327,35 @@ const AdminAI = () => {
   const clearAllPrompts = () => {
     Alert.alert(
       'Clear All Prompts',
-      'Are you sure you want to delete all custom prompts?',
+      'Are you sure you want to delete all custom prompts? This will remove them from all devices and cannot be undone.',
       [
         { text: 'Cancel', style: 'cancel' },
         {
           text: 'Clear All',
           style: 'destructive',
-          onPress: () => saveCustomPrompts([]),
+          onPress: async () => {
+            setIsSyncing(true);
+            setSyncStatus('Clearing all prompts...');
+            
+            try {
+              // Clear from Supabase
+              const supabaseSuccess = await clearAllAdminPromptsFromSupabase();
+              
+              // Clear local state
+              setCustomPrompts([]);
+              await saveCustomPromptsLocally([]);
+              
+              setSyncStatus(supabaseSuccess ? 'All prompts cleared!' : 'Cleared locally (sync pending)');
+              Alert.alert('Success', 'All prompts have been cleared!');
+            } catch (error) {
+              console.error('Error clearing prompts:', error);
+              setSyncStatus('Clear failed');
+              Alert.alert('Error', 'Failed to clear prompts. Please try again.');
+            } finally {
+              setIsSyncing(false);
+              setTimeout(() => setSyncStatus(''), 3000);
+            }
+          },
         },
       ]
     );
@@ -252,6 +390,15 @@ const AdminAI = () => {
         <View style={styles.header}>
           <Text style={styles.headerTitle}>Admin AI Control</Text>
           <View style={styles.headerButtons}>
+            <TouchableOpacity 
+              onPress={loadAndSyncCustomPrompts} 
+              style={styles.headerButton}
+              disabled={isSyncing}
+            >
+              <Text style={styles.headerButtonText}>
+                {isSyncing ? '🔄' : '↻'} Sync
+              </Text>
+            </TouchableOpacity>
             <TouchableOpacity onPress={exportPrompts} style={styles.headerButton}>
               <Text style={styles.headerButtonText}>Export</Text>
             </TouchableOpacity>
@@ -267,6 +414,22 @@ const AdminAI = () => {
             )}
           </View>
         </View>
+
+        {/* Sync Status */}
+        {(isSyncing || syncStatus) && (
+          <View style={styles.syncStatusContainer}>
+            {isSyncing && (
+              <Text style={styles.syncStatusText}>
+                🔄 {syncStatus || 'Syncing...'}
+              </Text>
+            )}
+            {!isSyncing && syncStatus && (
+              <Text style={[styles.syncStatusText, { color: syncStatus.includes('successfully') ? '#4caf50' : '#ff9800' }]}>
+                {syncStatus.includes('successfully') ? '✅' : '⚠️'} {syncStatus}
+              </Text>
+            )}
+          </View>
+        )}
 
         {/* Tab Navigation */}
         <View style={styles.tabContainer}>
@@ -378,11 +541,12 @@ const AdminAI = () => {
 
               <View style={styles.buttonGroup}>
                 <TouchableOpacity
-                  style={[styles.button, styles.primaryButton]}
+                  style={[styles.button, styles.primaryButton, { opacity: isSyncing ? 0.6 : 1 }]}
                   onPress={addOrUpdatePrompt}
+                  disabled={isSyncing}
                 >
                   <Text style={styles.buttonText}>
-                    {editingPrompt ? 'Update Prompt' : 'Add Prompt'}
+                    {isSyncing ? 'Saving...' : (editingPrompt ? 'Update Prompt' : 'Add Prompt')}
                   </Text>
                 </TouchableOpacity>
                 
@@ -499,6 +663,19 @@ const styles = StyleSheet.create({
   headerButtonText: {
     color: 'white',
     fontSize: 14,
+  },
+  syncStatusContainer: {
+    backgroundColor: '#f5f5f5',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e0e0e0',
+  },
+  syncStatusText: {
+    fontSize: 12,
+    textAlign: 'center',
+    color: '#666',
+    fontWeight: '500',
   },
   content: {
     flex: 1,
