@@ -531,35 +531,35 @@ export const syncAdminPrompts = async (localPrompts: AdminPrompt[]): Promise<Adm
   try {
     // First, load prompts from Supabase
     const supabasePrompts = await loadAdminPromptsFromSupabase();
-    
+
     // Create a map of existing prompt IDs from Supabase
     const supabasePromptIds = new Set(supabasePrompts.map(prompt => prompt.id));
-    
+
     // Find local prompts that aren't in Supabase yet
     const unsyncedPrompts = localPrompts.filter(prompt => !supabasePromptIds.has(prompt.id));
-    
+
     // Save unsynced prompts to Supabase
     for (const prompt of unsyncedPrompts) {
       await saveAdminPromptToSupabase(prompt);
     }
-    
+
     // Return the combined and sorted prompts
     const allPrompts = [...supabasePrompts];
-    
+
     // Add any local prompts that weren't in Supabase
     for (const localPrompt of unsyncedPrompts) {
       if (!allPrompts.find(prompt => prompt.id === localPrompt.id)) {
         allPrompts.push(localPrompt);
       }
     }
-    
+
     // Sort by creation date (newest first)
     allPrompts.sort((a, b) => {
       const dateA = a.created_at || new Date(0);
       const dateB = b.created_at || new Date(0);
       return dateB.getTime() - dateA.getTime();
     });
-    
+
     console.log(`Synced admin prompts: ${allPrompts.length} total prompts`);
     return allPrompts;
   } catch (error) {

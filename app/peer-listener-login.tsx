@@ -107,7 +107,7 @@ export default function PeerListenerLogin() {
             text: 'OK',
             onPress: () => {
               // Navigate to peer home
-              router.push('/peer/peer-home');
+              router.push('/peer/student-home');
             }
           }
         ]);

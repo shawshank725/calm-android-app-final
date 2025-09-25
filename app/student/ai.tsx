@@ -3,7 +3,6 @@ import { useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
-  Alert,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
@@ -13,21 +12,20 @@ import {
   TouchableOpacity,
   View
 } from 'react-native';
-import {
-  AIChatMessage,
-  clearChatHistoryFromSupabase,
-  saveConversationPair,
-  syncChatHistory
-} from '../../lib/aiChatStorage';
+import { AdminPrompt } from '../../lib/aiChatStorage';
+import { supabase } from '../../lib/supabase';
 
-// Using AIChatMessage from aiChatStorage.ts for consistency
-type Message = AIChatMessage;
-
-interface CustomPrompt {
+interface Message {
   id: string;
-  question: string;
-  answer: string;
+  text: string;
+  isUser: boolean;
+  timestamp: Date;
+  category?: string;
+  wellness_tip?: string;
 }
+
+// Using AdminPrompt from aiChatStorage.ts for consistency
+type CustomPrompt = AdminPrompt;
 
 const AI = () => {
   const router = useRouter();
@@ -42,13 +40,15 @@ const AI = () => {
   const [inputText, setInputText] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [customPrompts, setCustomPrompts] = useState<CustomPrompt[]>([]);
+  const [adminPrompts, setAdminPrompts] = useState<AdminPrompt[]>([]);
   const [isServerOnline, setIsServerOnline] = useState(false);
-  const [isSyncing, setIsSyncing] = useState(false);
+  const [isLoadingPrompts, setIsLoadingPrompts] = useState(false);
   const scrollViewRef = useRef<ScrollView>(null);
 
   useEffect(() => {
     loadCustomPrompts();
-    loadAndSyncChatHistory();
+    loadAdminPrompts();
+    loadChatHistory();
     checkServerStatus();
   }, []);
 
@@ -80,57 +80,138 @@ const AI = () => {
     }
   };
 
-  const loadAndSyncChatHistory = async () => {
+  const loadAdminPrompts = async () => {
     try {
-      setIsSyncing(true);
+      setIsLoadingPrompts(true);
+      console.log('Loading admin prompts from Supabase...');
 
-      // First load local chat history
-      const localHistory = await loadLocalChatHistory();
+      // Load all active admin prompts from Supabase
+      const { data, error } = await supabase
+        .from('admin_prompts')
+        .select('*')
+        .eq('is_active', true)
+        .order('priority', { ascending: false })
+        .order('created_at', { ascending: false });
 
-      // Try to sync with Supabase
-      const syncedMessages = await syncChatHistory(localHistory);
-
-      if (syncedMessages.length > 0) {
-        setMessages(syncedMessages);
-        await saveChatHistoryLocally(syncedMessages);
-      } else {
-        // If no synced messages, use local history
-        setMessages(localHistory);
+      if (error) {
+        console.error('Error loading admin prompts:', error);
+        // If table doesn't exist, show helpful message
+        if (error.code === '42P01') {
+          console.log('Admin prompts table not found. Please run the database setup script.');
+        }
+        return;
       }
 
-      console.log(`Loaded ${syncedMessages.length || localHistory.length} messages`);
+      if (data && data.length > 0) {
+        // Convert Supabase format to AdminPrompt format
+        const prompts: AdminPrompt[] = data.map((item: any) => ({
+          id: item.prompt_id,
+          question: item.question,
+          answer: item.answer,
+          category: item.category,
+          created_by: item.created_by,
+          created_at: new Date(item.created_at),
+          updated_at: new Date(item.updated_at),
+          is_active: item.is_active
+        }));
+
+        setAdminPrompts(prompts);
+        console.log(`Loaded ${prompts.length} admin prompts from Supabase`);
+      } else {
+        console.log('No admin prompts found in Supabase');
+        setAdminPrompts([]);
+      }
     } catch (error) {
-      console.error('Error loading and syncing chat history:', error);
-      // Fallback to local history only
-      const localHistory = await loadLocalChatHistory();
-      setMessages(localHistory);
+      console.error('Error loading admin prompts:', error);
+      setAdminPrompts([]);
     } finally {
-      setIsSyncing(false);
+      setIsLoadingPrompts(false);
     }
   };
 
-  const loadLocalChatHistory = async (): Promise<Message[]> => {
+  const loadChatHistory = async () => {
     try {
       const stored = await AsyncStorage.getItem('chatHistory');
       if (stored) {
         const history = JSON.parse(stored);
-        return history.map((msg: any) => ({
+        setMessages(history.map((msg: any) => ({
           ...msg,
           timestamp: new Date(msg.timestamp)
-        }));
+        })));
       }
     } catch (error) {
-      console.error('Error loading local chat history:', error);
+      console.error('Error loading chat history:', error);
     }
-    return [];
   };
 
-  const saveChatHistoryLocally = async (messagesToSave: Message[]) => {
+  const saveChatHistory = async (messagesToSave: Message[]) => {
     try {
       await AsyncStorage.setItem('chatHistory', JSON.stringify(messagesToSave));
     } catch (error) {
-      console.error('Error saving chat history locally:', error);
+      console.error('Error saving chat history:', error);
     }
+  };
+
+  const findBestAdminPromptMatch = (userMessage: string): AdminPrompt | null => {
+    if (!adminPrompts || adminPrompts.length === 0) {
+      return null;
+    }
+
+    const lowerMessage = userMessage.toLowerCase();
+
+    // First, try to find exact keyword matches
+    const exactMatch = adminPrompts.find(prompt =>
+      lowerMessage.includes(prompt.question.toLowerCase()) ||
+      prompt.question.toLowerCase().includes(lowerMessage)
+    );
+
+    if (exactMatch) {
+      console.log(`Found exact match for "${userMessage}": ${exactMatch.question}`);
+      return exactMatch;
+    }
+
+    // Second, try to find partial matches with common mental health keywords
+    const partialMatch = adminPrompts.find(prompt => {
+      const questionWords = prompt.question.toLowerCase().split(' ');
+      const messageWords = lowerMessage.split(' ');
+
+      // Check if any words from the prompt question appear in the user message
+      return questionWords.some(word =>
+        word.length > 3 && messageWords.some(msgWord =>
+          msgWord.includes(word) || word.includes(msgWord)
+        )
+      );
+    });
+
+    if (partialMatch) {
+      console.log(`Found partial match for "${userMessage}": ${partialMatch.question}`);
+      return partialMatch;
+    }
+
+    // Third, check for category-based matches
+    const categoryKeywords = {
+      'anxiety': ['anxious', 'anxiety', 'worried', 'worry', 'nervous', 'panic', 'fear'],
+      'stress': ['stressed', 'stress', 'overwhelmed', 'pressure', 'tension'],
+      'depression': ['sad', 'depressed', 'depression', 'down', 'hopeless', 'lonely'],
+      'sleep': ['sleep', 'tired', 'insomnia', 'sleepy', 'rest', 'exhausted'],
+      'motivation': ['motivation', 'motivate', 'unmotivated', 'lazy', 'procrastinate'],
+      'general': ['help', 'support', 'talk', 'listen', 'advice']
+    };
+
+    for (const [category, keywords] of Object.entries(categoryKeywords)) {
+      if (keywords.some(keyword => lowerMessage.includes(keyword))) {
+        const categoryMatch = adminPrompts.find(prompt =>
+          prompt.category?.toLowerCase() === category
+        );
+        if (categoryMatch) {
+          console.log(`Found category match (${category}) for "${userMessage}": ${categoryMatch.question}`);
+          return categoryMatch;
+        }
+      }
+    }
+
+    console.log(`No admin prompt match found for "${userMessage}"`);
+    return null;
   };
 
   const handleSend = async () => {
@@ -176,32 +257,40 @@ const AI = () => {
           throw new Error('Server error');
         }
       } else {
-        // Fallback to local custom prompts
-        const matchingPrompt = customPrompts.find(prompt =>
-          messageText.toLowerCase().includes(prompt.question.toLowerCase()) ||
-          prompt.question.toLowerCase().includes(messageText.toLowerCase())
-        );
-
-        if (matchingPrompt) {
-          aiResponse = matchingPrompt.answer;
+        // First, try to find a match in admin prompts from Supabase
+        const adminPromptMatch = findBestAdminPromptMatch(messageText);
+        if (adminPromptMatch) {
+          aiResponse = adminPromptMatch.answer;
+          category = adminPromptMatch.category || 'general';
+          console.log(`Using admin prompt response: ${adminPromptMatch.question} -> ${adminPromptMatch.answer.substring(0, 50)}...`);
         } else {
-          // Default responses for common mental health topics
-          const lowerMessage = messageText.toLowerCase();
-          if (lowerMessage.includes('anxious') || lowerMessage.includes('anxiety') || lowerMessage.includes('worried')) {
-            aiResponse = "I understand you're feeling anxious. Try the 4-7-8 breathing technique: breathe in for 4, hold for 7, exhale for 8. Remember, this feeling is temporary.";
-            category = 'anxiety';
-          } else if (lowerMessage.includes('stressed') || lowerMessage.includes('stress') || lowerMessage.includes('overwhelmed')) {
-            aiResponse = "Stress can be really challenging. Have you tried breaking down what's stressing you into smaller, manageable parts? Sometimes a short walk or deep breathing can help.";
-            category = 'stress';
-          } else if (lowerMessage.includes('sad') || lowerMessage.includes('depressed') || lowerMessage.includes('down')) {
-            aiResponse = "I'm sorry you're feeling sad. Your emotions are valid, and it's okay to sit with these feelings for a moment. Would you like to talk about what's making you feel this way?";
-            category = 'sad';
-          } else if (lowerMessage.includes('sleep') || lowerMessage.includes('tired') || lowerMessage.includes('insomnia')) {
-            aiResponse = "Good sleep is so important for mental health. Have you tried a bedtime routine with no screens 30 minutes before sleep? Creating a calm environment helps - cool, dark, and quiet.";
-            category = 'sleep';
+          // Second fallback to local custom prompts
+          const matchingPrompt = customPrompts.find(prompt =>
+            messageText.toLowerCase().includes(prompt.question.toLowerCase()) ||
+            prompt.question.toLowerCase().includes(messageText.toLowerCase())
+          );
+
+          if (matchingPrompt) {
+            aiResponse = matchingPrompt.answer;
           } else {
-            aiResponse = "I'm here to listen and support you. What's on your mind today? Feel free to share what you're feeling - whether it's stress, anxiety, sadness, or anything else.";
-            category = 'general';
+            // Default responses for common mental health topics (final fallback)
+            const lowerMessage = messageText.toLowerCase();
+            if (lowerMessage.includes('anxious') || lowerMessage.includes('anxiety') || lowerMessage.includes('worried')) {
+              aiResponse = "I understand you're feeling anxious. Try the 4-7-8 breathing technique: breathe in for 4, hold for 7, exhale for 8. Remember, this feeling is temporary.";
+              category = 'anxiety';
+            } else if (lowerMessage.includes('stressed') || lowerMessage.includes('stress') || lowerMessage.includes('overwhelmed')) {
+              aiResponse = "Stress can be really challenging. Have you tried breaking down what's stressing you into smaller, manageable parts? Sometimes a short walk or deep breathing can help.";
+              category = 'stress';
+            } else if (lowerMessage.includes('sad') || lowerMessage.includes('depressed') || lowerMessage.includes('down')) {
+              aiResponse = "I'm sorry you're feeling sad. Your emotions are valid, and it's okay to sit with these feelings for a moment. Would you like to talk about what's making you feel this way?";
+              category = 'sad';
+            } else if (lowerMessage.includes('sleep') || lowerMessage.includes('tired') || lowerMessage.includes('insomnia')) {
+              aiResponse = "Good sleep is so important for mental health. Have you tried a bedtime routine with no screens 30 minutes before sleep? Creating a calm environment helps - cool, dark, and quiet.";
+              category = 'sleep';
+            } else {
+              aiResponse = "I'm here to listen and support you. What's on your mind today? Feel free to share what you're feeling - whether it's stress, anxiety, sadness, or anything else.";
+              category = 'general';
+            }
           }
         }
       }
@@ -217,21 +306,7 @@ const AI = () => {
 
       const finalMessages = [...newMessages, aiMessage];
       setMessages(finalMessages);
-
-      // Save locally first for immediate access
-      await saveChatHistoryLocally(finalMessages);
-
-      // Save conversation pair to Supabase for cross-device sync
-      try {
-        const success = await saveConversationPair(userMessage, aiMessage);
-        if (success) {
-          console.log('Successfully synced conversation to Supabase');
-        } else {
-          console.log('Failed to sync to Supabase, but saved locally');
-        }
-      } catch (error) {
-        console.error('Error syncing to Supabase:', error);
-      }
+      await saveChatHistory(finalMessages);
 
     } catch (error) {
       console.error('Error sending message:', error);
@@ -248,52 +323,13 @@ const AI = () => {
   };
 
   const clearChat = async () => {
-    Alert.alert(
-      'Clear Chat History',
-      'This will delete all your chat history from this device and cloud storage. Are you sure?',
-      [
-        {
-          text: 'Cancel',
-          style: 'cancel'
-        },
-        {
-          text: 'Clear All',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              setIsSyncing(true);
-
-              // Clear from Supabase
-              const supabaseCleared = await clearChatHistoryFromSupabase();
-
-              // Clear locally
-              await AsyncStorage.removeItem('chatHistory');
-
-              // Reset to initial message
-              const initialMessage: Message = {
-                id: '1',
-                text: "Hello! I'm your CALM companion AI. I'm here to help you with mental wellness, stress management, and emotional support. How are you feeling today?",
-                isUser: false,
-                timestamp: new Date()
-              };
-
-              setMessages([initialMessage]);
-
-              if (supabaseCleared) {
-                Alert.alert('Success', 'Chat history cleared from all devices');
-              } else {
-                Alert.alert('Partially Cleared', 'Local history cleared, but there was an issue clearing cloud storage');
-              }
-            } catch (error) {
-              console.error('Error clearing chat:', error);
-              Alert.alert('Error', 'Failed to clear chat history completely');
-            } finally {
-              setIsSyncing(false);
-            }
-          }
-        }
-      ]
-    );
+    setMessages([{
+      id: '1',
+      text: "Hello! I'm your CALM companion AI. I'm here to help you with mental wellness, stress management, and emotional support. How are you feeling today?",
+      isUser: false,
+      timestamp: new Date()
+    }]);
+    await AsyncStorage.removeItem('chatHistory');
   };
 
   return (
@@ -307,14 +343,9 @@ const AI = () => {
           <Text style={styles.backButtonText}>← Back</Text>
         </TouchableOpacity>
         <Text style={styles.headerTitle}>AI Companion</Text>
-        <View style={styles.headerButtons}>
-          <TouchableOpacity onPress={loadAndSyncChatHistory} style={styles.syncButton} disabled={isSyncing}>
-            <Text style={styles.syncButtonText}>{isSyncing ? '🔄' : '↻'}</Text>
-          </TouchableOpacity>
-          <TouchableOpacity onPress={clearChat} style={styles.clearButton}>
-            <Text style={styles.clearButtonText}>Clear</Text>
-          </TouchableOpacity>
-        </View>
+        <TouchableOpacity onPress={clearChat} style={styles.clearButton}>
+          <Text style={styles.clearButtonText}>Clear</Text>
+        </TouchableOpacity>
       </View>
 
       {/* Server Status */}
@@ -322,11 +353,18 @@ const AI = () => {
         <Text style={[styles.statusText, { color: isServerOnline ? '#2d5a2d' : '#c62828' }]}>
           {isServerOnline ? '✅ AI Server Online - Enhanced responses available' : '⚠️ Offline Mode - Basic responses only'}
         </Text>
-        {isSyncing && (
-          <Text style={[styles.statusText, { color: '#6c5ce7', fontSize: 10, marginTop: 2 }]}>
-            🔄 Syncing with cloud storage...
-          </Text>
-        )}
+      </View>
+
+      {/* Admin Prompts Status */}
+      <View style={[styles.statusBar, { backgroundColor: '#f0f8ff' }]}>
+        <Text style={[styles.statusText, { color: '#1565c0' }]}>
+          {isLoadingPrompts
+            ? '⏳ Loading admin prompts...'
+            : adminPrompts.length > 0
+              ? `📋 ${adminPrompts.length} admin prompts loaded`
+              : '📝 Using default responses'
+          }
+        </Text>
       </View>
 
       {/* Messages */}
@@ -435,24 +473,6 @@ const styles = StyleSheet.create({
   clearButtonText: {
     color: 'white',
     fontSize: 14,
-    fontWeight: 'bold',
-  },
-  headerButtons: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  syncButton: {
-    backgroundColor: 'rgba(255,255,255,0.2)',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 20,
-    minWidth: 36,
-    alignItems: 'center',
-  },
-  syncButtonText: {
-    color: 'white',
-    fontSize: 16,
     fontWeight: 'bold',
   },
   statusBar: {

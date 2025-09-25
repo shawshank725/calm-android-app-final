@@ -77,100 +77,78 @@ export default function StudentCalm() {
     const loadExperts = async () => {
       setLoadingExperts(true);
       try {
+        console.log('Loading experts from database...');
         const { data: expertData, error } = await supabase
-          .from('experts')
+          .from('expert')  // Using 'expert' table name (singular) to match our SQL schema
           .select('*')
+          .eq('is_active', true)
+          .eq('is_verified', true)
           .order('name');
 
         if (error) {
-          console.error('Error loading experts:', error);
-          // Fallback to default experts if database fails
-          setExperts([
-            {
-              id: '1',
-              name: 'Parvneet Kaur',
-              registration_number: 'EXP001',
-              specialization: 'Clinical Psychology',
-              experience: '8+ years',
-              rating: '4.9'
-            },
-            {
-              id: '2',
-              name: 'Himanshi Punia',
-              registration_number: 'EXP002',
-              specialization: 'Counseling Psychology',
-              experience: '6+ years',
-              rating: '4.8'
-            },
-            {
-              id: '3',
-              name: 'Anvesha Choukesy',
-              registration_number: 'EXP003',
-              specialization: 'Mental Health Counselor',
-              experience: '5+ years',
-              rating: '4.7'
+          console.error('Error loading experts from "expert" table:', error);
+          console.error('Error details:', error.message);
+
+          // If table doesn't exist or has issues, try 'experts' (plural) as fallback
+          try {
+            const { data: fallbackData, error: fallbackError } = await supabase
+              .from('experts')
+              .select('*')
+              .order('name');
+
+            if (fallbackError) {
+              console.error('Fallback "experts" table also failed:', fallbackError);
+              console.error('Fallback error details:', fallbackError.message);
+              setExperts([]);
+            } else if (fallbackData && fallbackData.length > 0) {
+              const transformedExperts = fallbackData.map(expert => ({
+                id: expert.id?.toString() || expert.registration_number || `expert_${Math.random()}`,
+                name: expert.name || 'Unknown Expert',
+                registration_number: expert.registration_number || expert.id?.toString() || 'N/A',
+                specialization: expert.specialist || expert.specialization || 'Mental Health Expert',
+                experience: expert.experience_years
+                  ? `${expert.experience_years}+ years`
+                  : expert.experience || '5+ years',
+                rating: expert.rating ? expert.rating.toString() : '4.8',
+                email: expert.email || '',
+                phone: expert.phone || '',
+                qualifications: expert.qualifications || '',
+                bio: expert.bio || ''
+              }));
+              setExperts(transformedExperts);
+              console.log('Successfully loaded experts from fallback "experts" table:', transformedExperts.length);
+            } else {
+              console.log('No experts found in fallback table');
+              setExperts([]);
             }
-          ]);
+          } catch (fallbackErr) {
+            console.error('Fallback query failed with exception:', fallbackErr);
+            setExperts([]);
+          }
         } else if (expertData && expertData.length > 0) {
-          setExperts(expertData);
+          // Transform data to match expected format
+          const transformedExperts = expertData.map(expert => ({
+            id: expert.id?.toString() || expert.registration_number,
+            name: expert.name,
+            registration_number: expert.registration_number,
+            specialization: expert.specialist || expert.specialization || 'Mental Health Expert',
+            experience: expert.experience_years ? `${expert.experience_years}+ years` : expert.experience || '5+ years',
+            rating: expert.rating ? expert.rating.toString() : '4.8',
+            email: expert.email,
+            phone: expert.phone,
+            qualifications: expert.qualifications,
+            bio: expert.bio
+          }));
+          setExperts(transformedExperts);
+          console.log('Successfully loaded experts:', transformedExperts.length);
         } else {
-          // No experts in database, use fallback
-          setExperts([
-            {
-              id: '1',
-              name: 'Parvneet Kaur',
-              registration_number: 'EXP001',
-              specialization: 'Clinical Psychology',
-              experience: '8+ years',
-              rating: '4.9'
-            },
-            {
-              id: '2',
-              name: 'Himanshi Punia',
-              registration_number: 'EXP002',
-              specialization: 'Counseling Psychology',
-              experience: '6+ years',
-              rating: '4.8'
-            },
-            {
-              id: '3',
-              name: 'Anvesha Choukesy',
-              registration_number: 'EXP003',
-              specialization: 'Mental Health Counselor',
-              experience: '5+ years',
-              rating: '4.7'
-            }
-          ]);
+          // No experts in database
+          console.log('No experts found in database');
+          setExperts([]);
         }
       } catch (error) {
         console.error('Error fetching experts:', error);
-        // Use fallback data on error
-        setExperts([
-          {
-            id: '1',
-            name: 'Parvneet Kaur',
-            registration_number: 'EXP001',
-            specialization: 'Clinical Psychology',
-            experience: '8+ years',
-            rating: '4.9'
-          },
-          {
-            id: '2',
-            name: 'Himanshi Punia',
-            registration_number: 'EXP002',
-            specialization: 'Counseling Psychology',
-            experience: '6+ years',
-            rating: '4.8'
-          },
-          {
-            id: '3',
-            name: 'Anvesha Choukesy',
-            registration_number: 'EXP003',
-            specialization: 'Mental Health Counselor',
-            experience: '5+ years',
-            rating: '4.7'
-          }
-        ]);
+        setExperts([]);
       } finally {
         setLoadingExperts(false);
       }
@@ -781,6 +759,35 @@ export default function StudentCalm() {
       </View>
 
       <ScrollView style={styles.content} contentContainerStyle={styles.contentContainer}>
+        {/* Debug Info */}
+        <View style={styles.debugCard}>
+          <Text style={styles.debugTitle}>Expert Loading Status</Text>
+          <Text style={styles.debugText}>
+            Loading: {loadingExperts ? 'Yes' : 'No'} |
+            Count: {experts.length} |
+            Status: {loadingExperts ? 'Loading...' : experts.length > 0 ? 'Loaded' : 'No experts found'}
+          </Text>
+          <TouchableOpacity
+            style={styles.debugButton}
+            onPress={async () => {
+              setLoadingExperts(true);
+              try {
+                console.log('Manual expert reload triggered');
+                const { data, error } = await supabase.from('expert').select('*');
+                console.log('Expert query result:', { data, error });
+                Alert.alert('Debug Info', `Data: ${data?.length || 0} experts, Error: ${error?.message || 'None'}`);
+              } catch (err) {
+                console.error('Manual reload error:', err);
+                Alert.alert('Debug Error', String(err));
+              } finally {
+                setLoadingExperts(false);
+              }
+            }}
+          >
+            <Text style={styles.debugButtonText}>🔄 Test Expert Loading</Text>
+          </TouchableOpacity>
+        </View>
+
         {/* Connection Buttons */}
         <View style={styles.connectionCard}>
           <Text style={styles.cardTitle}> Professional Support</Text>
@@ -1555,5 +1562,36 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     justifyContent: 'space-between',
+  },
+  debugCard: {
+    backgroundColor: 'rgba(255, 193, 7, 0.1)',
+    borderRadius: 15,
+    padding: 15,
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: '#FFC107',
+  },
+  debugTitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#F57F17',
+    marginBottom: 8,
+  },
+  debugText: {
+    fontSize: 14,
+    color: '#F57F17',
+    marginBottom: 10,
+  },
+  debugButton: {
+    backgroundColor: '#FFC107',
+    paddingVertical: 8,
+    paddingHorizontal: 15,
+    borderRadius: 20,
+    alignSelf: 'flex-start',
+  },
+  debugButtonText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: 'bold',
   },
 });

@@ -13,15 +13,13 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import { supabase } from '../../lib/supabase';
 import {
   AdminPrompt,
+  clearAllAdminPromptsFromSupabase,
   deleteAdminPromptFromSupabase,
-  loadAdminPromptsFromSupabase,
   saveAdminPromptToSupabase,
   syncAdminPrompts,
-  updateAdminPromptInSupabase,
-  clearAllAdminPromptsFromSupabase
+  updateAdminPromptInSupabase
 } from '../../lib/aiChatStorage';
 
 // Using AdminPrompt from aiChatStorage.ts for consistency
@@ -119,14 +117,14 @@ const AdminAI = () => {
     try {
       setIsSyncing(true);
       setSyncStatus('Loading prompts...');
-      
+
       // First load local prompts
       const localPrompts = await loadLocalCustomPrompts();
-      
+
       // Try to sync with Supabase
       setSyncStatus('Syncing with cloud...');
       const syncedPrompts = await syncAdminPrompts(localPrompts);
-      
+
       if (syncedPrompts.length > 0) {
         setCustomPrompts(syncedPrompts);
         await saveCustomPromptsLocally(syncedPrompts);
@@ -136,7 +134,7 @@ const AdminAI = () => {
         setCustomPrompts(localPrompts);
         setSyncStatus('Using local prompts only');
       }
-      
+
       console.log(`Loaded ${syncedPrompts.length || localPrompts.length} admin prompts`);
     } catch (error) {
       console.error('Error loading and syncing prompts:', error);
@@ -227,15 +225,15 @@ const AdminAI = () => {
 
         // Save to Supabase
         const supabaseSuccess = await updateAdminPromptInSupabase(updatedPrompt);
-        
+
         // Update local state
         const updatedPrompts = customPrompts.map(prompt =>
           prompt.id === editingPrompt.id ? updatedPrompt : prompt
         );
-        
+
         setCustomPrompts(updatedPrompts);
         await saveCustomPromptsLocally(updatedPrompts);
-        
+
         setSyncStatus(supabaseSuccess ? 'Updated successfully!' : 'Updated locally (sync pending)');
         setEditingPrompt(null);
       } else {
@@ -252,12 +250,12 @@ const AdminAI = () => {
 
         // Save to Supabase
         const supabaseSuccess = await saveAdminPromptToSupabase(newPrompt);
-        
+
         // Update local state
         const updatedPrompts = [...customPrompts, newPrompt];
         setCustomPrompts(updatedPrompts);
         await saveCustomPromptsLocally(updatedPrompts);
-        
+
         setSyncStatus(supabaseSuccess ? 'Added successfully!' : 'Added locally (sync pending)');
       }
 
@@ -292,16 +290,16 @@ const AdminAI = () => {
           onPress: async () => {
             setIsSyncing(true);
             setSyncStatus('Deleting prompt...');
-            
+
             try {
               // Delete from Supabase
               const supabaseSuccess = await deleteAdminPromptFromSupabase(id);
-              
+
               // Update local state
               const updatedPrompts = customPrompts.filter(prompt => prompt.id !== id);
               setCustomPrompts(updatedPrompts);
               await saveCustomPromptsLocally(updatedPrompts);
-              
+
               setSyncStatus(supabaseSuccess ? 'Deleted successfully!' : 'Deleted locally (sync pending)');
               Alert.alert('Success', 'Prompt deleted successfully!');
             } catch (error) {
@@ -336,15 +334,15 @@ const AdminAI = () => {
           onPress: async () => {
             setIsSyncing(true);
             setSyncStatus('Clearing all prompts...');
-            
+
             try {
               // Clear from Supabase
               const supabaseSuccess = await clearAllAdminPromptsFromSupabase();
-              
+
               // Clear local state
               setCustomPrompts([]);
               await saveCustomPromptsLocally([]);
-              
+
               setSyncStatus(supabaseSuccess ? 'All prompts cleared!' : 'Cleared locally (sync pending)');
               Alert.alert('Success', 'All prompts have been cleared!');
             } catch (error) {
@@ -368,7 +366,7 @@ const AdminAI = () => {
         settings: aiSettings,
         exportDate: new Date().toISOString(),
       };
-      
+
       // In a real app, you would use a file picker or share dialog
       Alert.alert(
         'Export Data',
@@ -381,8 +379,8 @@ const AdminAI = () => {
   };
 
   return (
-    <KeyboardAvoidingView 
-      style={styles.container} 
+    <KeyboardAvoidingView
+      style={styles.container}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
     >
@@ -390,8 +388,8 @@ const AdminAI = () => {
         <View style={styles.header}>
           <Text style={styles.headerTitle}>Admin AI Control</Text>
           <View style={styles.headerButtons}>
-            <TouchableOpacity 
-              onPress={loadAndSyncCustomPrompts} 
+            <TouchableOpacity
+              onPress={loadAndSyncCustomPrompts}
               style={styles.headerButton}
               disabled={isSyncing}
             >
@@ -459,7 +457,7 @@ const AdminAI = () => {
           </TouchableOpacity>
         </View>
 
-        <ScrollView 
+        <ScrollView
           style={styles.content}
           refreshControl={
             activeTab === 'history' ? (
@@ -470,7 +468,7 @@ const AdminAI = () => {
         {activeTab === 'settings' && (
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>AI Settings</Text>
-            
+
             <View style={styles.settingItem}>
               <Text style={styles.settingLabel}>AI Status</Text>
               <Switch
@@ -515,7 +513,7 @@ const AdminAI = () => {
           <>
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>Add Custom Prompt</Text>
-              
+
               <View style={styles.inputGroup}>
                 <Text style={styles.inputLabel}>Question/Trigger</Text>
                 <TextInput
@@ -549,7 +547,7 @@ const AdminAI = () => {
                     {isSyncing ? 'Saving...' : (editingPrompt ? 'Update Prompt' : 'Add Prompt')}
                   </Text>
                 </TouchableOpacity>
-                
+
                 {editingPrompt && (
                   <TouchableOpacity
                     style={[styles.button, styles.secondaryButton]}
@@ -563,7 +561,7 @@ const AdminAI = () => {
 
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>Existing Prompts</Text>
-              
+
               {customPrompts.length === 0 ? (
                 <Text style={styles.emptyText}>No custom prompts yet. Add some above!</Text>
               ) : (
@@ -597,7 +595,7 @@ const AdminAI = () => {
         {activeTab === 'history' && (
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Student Search History</Text>
-            
+
             {searchHistory.length === 0 ? (
               <Text style={styles.emptyText}>
                 No search history yet. Students' questions will appear here once they start using the AI.
@@ -609,7 +607,7 @@ const AdminAI = () => {
                     <Text style={styles.historyDate}>
                       {new Date(item.created_at).toLocaleString()}
                     </Text>
-                    <View style={[styles.sourceBadge, 
+                    <View style={[styles.sourceBadge,
                       item.source === 'custom_prompt' ? styles.customSourceBadge : styles.internetSourceBadge
                     ]}>
                       <Text style={styles.sourceBadgeText}>
