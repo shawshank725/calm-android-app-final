@@ -1,6 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   Alert,
   FlatList,
@@ -820,7 +820,7 @@ export default function MessagesPage() {
           <Text style={styles.backButtonText}>← Back</Text>
         </TouchableOpacity>
         <View style={styles.headerTitleContainer}>
-          <Text style={styles.headerTitle}>💬 My Conversations</Text>
+          <Text style={styles.headerTitle}>My Conversations</Text>
           <Text style={styles.headerSubtitle}>Private chats with {studentInfo.name}</Text>
         </View>
         <TouchableOpacity

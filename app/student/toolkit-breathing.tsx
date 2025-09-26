@@ -531,7 +531,7 @@ export default function ToolkitBreathing() {
         <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
           <Text style={styles.backButtonText}>← Back</Text>
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>💨 Breathing Exercises</Text>
+  <Text style={styles.headerTitle}>Breathing Exercises</Text>
       </View>
 
       <ScrollView style={styles.content} contentContainerStyle={styles.contentContainer}>
@@ -549,13 +549,13 @@ export default function ToolkitBreathing() {
 
                 {/* Box Breathing Guide */}
                 <View style={styles.breathingComponentCard}>
-                  <Text style={styles.componentTitle}>📦 Box Breathing Guide</Text>
+                  <Text style={styles.componentTitle}>Box Breathing Guide</Text>
                   <BoxBreathingGuide />
                 </View>
 
                 {/* Breath Pacer with Audio */}
                 <View style={styles.breathingComponentCard}>
-                  <Text style={styles.componentTitle}>🎵 Audio-Enhanced Breathing</Text>
+                  <Text style={styles.componentTitle}>Audio-Enhanced Breathing</Text>
                   <BreathPacerWithAudio />
                 </View>
               </View>
@@ -639,7 +639,7 @@ export default function ToolkitBreathing() {
 
         {/* Tips */}
         <View style={styles.tipsCard}>
-          <Text style={styles.tipsTitle}>💡 Breathing Tips</Text>
+          <Text style={styles.tipsTitle}>Breathing Tips</Text>
           <Text style={styles.tipText}>• Find a comfortable, quiet place</Text>
           <Text style={styles.tipText}>• Breathe through your nose when possible</Text>
           <Text style={styles.tipText}>• Focus on your breath, not distractions</Text>

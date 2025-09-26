@@ -99,7 +99,7 @@ export default function BuddyConnect() {
           >
             <Text style={styles.backButtonText}>←Back</Text>
           </TouchableOpacity>
-          <Text style={[styles.title, { flex: 1, textAlign: 'center' }]}>🤝 Buddy Connect</Text>
+          <Text style={[styles.title, { flex: 1, textAlign: 'center' }]}>Buddy Connect</Text>
         </View>
         <FlatList
           ref={flatListRef}

@@ -167,7 +167,7 @@ export default function ToolkitFocus() {
         <TouchableOpacity onPress={() => router.back()} style={{ marginBottom: 15 }}>
           <Text style={{ color: '#fff', fontSize: 18, fontWeight: 'bold' }}>← Back</Text>
         </TouchableOpacity>
-        <Text style={{ color: '#fff', fontSize: 28, fontWeight: 'bold', textAlign: 'center' }}>🧠 Focus Toolkit</Text>
+  <Text style={{ color: '#fff', fontSize: 28, fontWeight: 'bold', textAlign: 'center' }}>Focus Toolkit</Text>
         <Text style={{ color: '#fff', fontSize: 16, textAlign: 'center', marginTop: 5 }}>Strengthen your attention and clarity</Text>
       </View>
 

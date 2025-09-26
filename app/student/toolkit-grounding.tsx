@@ -1,6 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { Alert, KeyboardAvoidingView, Modal, Platform, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
 
 export default function ToolkitGrounding() {
@@ -132,7 +132,7 @@ export default function ToolkitGrounding() {
         <TouchableOpacity onPress={() => router.back()} style={{ marginBottom: 15 }}>
           <Text style={{ color: '#fff', fontSize: 18, fontWeight: 'bold' }}>← Back</Text>
         </TouchableOpacity>
-        <Text style={{ color: '#fff', fontSize: 28, fontWeight: 'bold', textAlign: 'center' }}>🌱 Grounding Techniques</Text>
+  <Text style={{ color: '#fff', fontSize: 28, fontWeight: 'bold', textAlign: 'center' }}>Grounding Techniques</Text>
         <Text style={{ color: '#fff', fontSize: 16, textAlign: 'center', marginTop: 5 }}>Stay present and centered</Text>
       </View>
 
@@ -153,7 +153,7 @@ export default function ToolkitGrounding() {
             style={{ backgroundColor: '#2ecc71', borderRadius: 20, padding: 25, marginBottom: 20, elevation: 5, shadowColor: '#000', shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.2, shadowRadius: 5 }}
             onPress={() => setShowDescribeWorld(true)}
           >
-            <Text style={{ color: '#fff', fontSize: 24, fontWeight: 'bold', textAlign: 'center', marginBottom: 8 }}>🌍 Describe Your World</Text>
+            <Text style={{ color: '#fff', fontSize: 24, fontWeight: 'bold', textAlign: 'center', marginBottom: 8 }}>Describe Your World</Text>
             <Text style={{ color: '#fff', fontSize: 14, textAlign: 'center' }}>Mindfully observe and describe your environment</Text>
           </TouchableOpacity>
 
@@ -164,7 +164,7 @@ export default function ToolkitGrounding() {
             style={{ backgroundColor: '#e74c3c', borderRadius: 20, padding: 25, marginBottom: 20, elevation: 5, shadowColor: '#000', shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.2, shadowRadius: 5 }}
             onPress={() => setShowMuscleRelax(true)}
           >
-            <Text style={{ color: '#fff', fontSize: 24, fontWeight: 'bold', textAlign: 'center', marginBottom: 8 }}>💪 Progressive Muscle Relaxation</Text>
+            <Text style={{ color: '#fff', fontSize: 24, fontWeight: 'bold', textAlign: 'center', marginBottom: 8 }}>Progressive Muscle Relaxation</Text>
             <Text style={{ color: '#fff', fontSize: 14, textAlign: 'center' }}>Tense and release muscle groups to reduce stress</Text>
           </TouchableOpacity>
 
@@ -173,7 +173,7 @@ export default function ToolkitGrounding() {
             style={{ backgroundColor: '#f39c12', borderRadius: 20, padding: 25, marginBottom: 20, elevation: 5, shadowColor: '#000', shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.2, shadowRadius: 5 }}
             onPress={() => setShowMindfulWalk(true)}
           >
-            <Text style={{ color: '#fff', fontSize: 24, fontWeight: 'bold', textAlign: 'center', marginBottom: 8 }}>🚶 Mindful Walking</Text>
+            <Text style={{ color: '#fff', fontSize: 24, fontWeight: 'bold', textAlign: 'center', marginBottom: 8 }}>Mindful Walking</Text>
             <Text style={{ color: '#fff', fontSize: 14, textAlign: 'center' }}>Connect with your body through conscious movement</Text>
           </TouchableOpacity>
         </View>
@@ -187,7 +187,7 @@ export default function ToolkitGrounding() {
               <Text style={{ fontSize: 24, fontWeight: 'bold', textAlign: 'center', marginBottom: 20, color: '#2c3e50' }}>
                 {steps54321[currentStep]?.title}
               </Text>
-              
+
               <ScrollView style={{ maxHeight: 300 }}>
                 {steps54321[currentStep] && [...Array(steps54321[currentStep].count)].map((_, index) => (
                   <TextInput
@@ -262,7 +262,7 @@ export default function ToolkitGrounding() {
               <Text style={{ fontSize: 24, fontWeight: 'bold', textAlign: 'center', marginBottom: 20, color: '#2c3e50' }}>
                 🌍 Describe Your World
               </Text>
-              
+
               <ScrollView style={{ maxHeight: 400 }}>
                 <Text style={{ fontSize: 16, fontWeight: 'bold', marginBottom: 5, color: '#2c3e50' }}>What sounds do you hear?</Text>
                 <TextInput
@@ -347,11 +347,11 @@ export default function ToolkitGrounding() {
             <Text style={{ fontSize: 24, fontWeight: 'bold', textAlign: 'center', marginBottom: 20, color: '#2c3e50' }}>
               💪 Progressive Muscle Relaxation
             </Text>
-            
+
             <Text style={{ fontSize: 20, fontWeight: 'bold', textAlign: 'center', marginBottom: 15, color: '#e74c3c' }}>
               {muscleGroups[muscleStep]?.name}
             </Text>
-            
+
             <Text style={{ fontSize: 16, textAlign: 'center', marginBottom: 30, color: '#2c3e50', lineHeight: 24 }}>
               {muscleGroups[muscleStep]?.instruction}
             </Text>
@@ -417,13 +417,13 @@ export default function ToolkitGrounding() {
         <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center' }}>
           <View style={{ backgroundColor: '#fff', borderRadius: 20, padding: 25, width: '90%' }}>
             <Text style={{ fontSize: 24, fontWeight: 'bold', textAlign: 'center', marginBottom: 20, color: '#2c3e50' }}>
-              🚶 Mindful Walking
+              Mindful Walking
             </Text>
-            
+
             <Text style={{ fontSize: 20, fontWeight: 'bold', textAlign: 'center', marginBottom: 15, color: '#f39c12' }}>
               {walkingSteps[walkingStep]?.title}
             </Text>
-            
+
             <Text style={{ fontSize: 16, textAlign: 'center', marginBottom: 30, color: '#2c3e50', lineHeight: 24 }}>
               {walkingSteps[walkingStep]?.instruction}
             </Text>

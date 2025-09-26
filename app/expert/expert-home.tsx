@@ -14,6 +14,7 @@ import {
   TouchableOpacity,
   View
 } from 'react-native';
+import { uploadFile } from '../../api/Library';
 import { supabase } from '../../lib/supabase';
 
 export default function ExpertHome() {
@@ -230,7 +231,7 @@ export default function ExpertHome() {
 
       Alert.alert(
         'Upload Successful!',
-        `"${uploadForm.title}" (${selectedFile.name}) has been uploaded successfully and is now available to students in the Learning Support section. Students will see this resource immediately.`,
+        `${uploadForm.title} (${selectedFile.name}) has been uploaded successfully and is now available to students in the Learning Support section. Students will see this resource immediately.`,
         [
           {
             text: 'OK',
@@ -272,7 +273,7 @@ export default function ExpertHome() {
               style={[styles.actionCard, { backgroundColor: '#6dd5ed' }]}
               onPress={() => router.push('./calm')}
             >
-              <Text style={styles.actionIcon}>🧘‍♀️</Text>
+              <Text style={styles.actionIcon}>🧘‍♀</Text>
               <Text style={styles.actionTitle}>Calm Companion</Text>
               <Text style={styles.actionSubtitle}>Guided meditation tools</Text>
             </TouchableOpacity>
@@ -315,7 +316,7 @@ export default function ExpertHome() {
 
             <TouchableOpacity
               style={[styles.actionCard, { backgroundColor: '#f39c12' }]}
-              onPress={() => Alert.alert('Feature Coming Soon', 'Schedule management will be available in the next update.')}
+              onPress={() => router.push("/expert/schedule")}
             >
               <Text style={styles.actionIcon}>📅</Text>
               <Text style={styles.actionTitle}>Schedule</Text>
@@ -582,7 +583,31 @@ export default function ExpertHome() {
 
               <TouchableOpacity
                 style={[styles.modalUploadButton, uploadLoading && styles.modalUploadButtonDisabled]}
-                onPress={handleFileUpload}
+                onPress={async () => {
+                    const uri = selectedFile?.uri;
+                    let output_path = "";
+
+                    if (uri) {
+                      try {
+                        const path = await uploadFile(uri);
+                        console.log("OUTPUT PATH - ", path);
+                        output_path = path || "";
+                      } catch (err) {
+                        console.log("Upload failed:", err);
+                      }
+                    } else {
+                      Alert.alert("No file selected.");
+                    }
+                    const resourceDataToBeUploaded = {
+                      resource_title: uploadForm.title,
+                      description: uploadForm.description,
+                      file_url: output_path, // In production, this would be the cloud storage URL after upload
+                      category: uploadForm.category.toUpperCase().replace(" ", "_"),
+                    };
+                    const {data, error} = await supabase.from("library").insert(resourceDataToBeUploaded);
+                    console.log("DATA - ", data);
+                    console.log("ERROR - ", error);
+                  }}
                 disabled={uploadLoading}
                 activeOpacity={0.3}
                 delayPressIn={0}
@@ -639,7 +664,7 @@ export default function ExpertHome() {
           style={[styles.tabItem, activeTab === 'settings' && styles.activeTabItem]}
           onPress={() => setActiveTab('settings')}
         >
-          <Text style={[styles.tabIcon, activeTab === 'settings' && styles.activeTabIcon]}>⚙️</Text>
+          <Text style={[styles.tabIcon, activeTab === 'settings' && styles.activeTabIcon]}>⚙</Text>
           <Text style={[styles.tabLabel, activeTab === 'settings' && styles.activeTabLabel]}>Settings</Text>
         </TouchableOpacity>
       </View>
@@ -711,6 +736,7 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: '#fff',
     marginBottom: 5,
+    textAlign:'center'
   },
   actionSubtitle: {
     fontSize: 12,

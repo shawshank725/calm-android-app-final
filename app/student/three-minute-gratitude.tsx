@@ -1,6 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 
 interface GratitudeEntry {
@@ -43,10 +43,10 @@ export default function ThreeMinuteGratitude() {
         const storedReg = await AsyncStorage.getItem('currentStudentReg');
         if (storedReg) regNo = storedReg;
       }
-      
+
       if (regNo) {
         setStudentRegNo(regNo);
-        
+
         // Load gratitude entries for this user
         const stored = await AsyncStorage.getItem(`gratitude_entries_${regNo}`);
         if (stored) {
@@ -60,7 +60,7 @@ export default function ThreeMinuteGratitude() {
 
   const saveGratitudeEntry = async () => {
     if (!studentRegNo) return;
-    
+
     const today = new Date().toISOString().slice(0, 10);
     const newEntry: GratitudeEntry = {
       id: Date.now().toString(),
@@ -68,10 +68,10 @@ export default function ThreeMinuteGratitude() {
       items: gratitudeInputs.filter(item => item.trim() !== ''),
       timestamp: new Date().toISOString()
     };
-    
+
     const updated = [newEntry, ...gratitudeEntries.filter(e => e.date !== today)];
     setGratitudeEntries(updated);
-    
+
     try {
       await AsyncStorage.setItem(`gratitude_entries_${studentRegNo}`, JSON.stringify(updated));
       setGratitudeSaved(true);
@@ -100,13 +100,13 @@ export default function ThreeMinuteGratitude() {
   return (
     <View style={styles.container}>
       <View style={styles.gradientBackground} />
-      
+
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
           <Text style={styles.backButtonText}>← Back</Text>
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>🙏 3-Minute Gratitude</Text>
+  <Text style={styles.headerTitle}>3-Minute Gratitude</Text>
       </View>
 
       <ScrollView style={styles.content} contentContainerStyle={styles.contentContainer}>
@@ -125,7 +125,7 @@ export default function ThreeMinuteGratitude() {
         <View style={styles.inputCard}>
           <Text style={styles.inputTitle}>What are you grateful for today?</Text>
           <Text style={styles.inputSubtitle}>Write down 3 things that bring you joy or peace</Text>
-          
+
           {gratitudeInputs.map((value, index) => (
             <View key={index} style={styles.inputContainer}>
               <Text style={styles.inputNumber}>{index + 1}.</Text>
@@ -144,7 +144,7 @@ export default function ThreeMinuteGratitude() {
               />
             </View>
           ))}
-          
+
           <TouchableOpacity
             onPress={saveGratitudeEntry}
             style={[styles.saveButton, !canSave && styles.disabledButton]}
@@ -163,10 +163,10 @@ export default function ThreeMinuteGratitude() {
             {gratitudeEntries.slice(0, 5).map((entry, index) => (
               <View key={entry.id} style={styles.historyEntry}>
                 <Text style={styles.historyDate}>
-                  {new Date(entry.date).toLocaleDateString('en-US', { 
-                    weekday: 'long', 
-                    month: 'short', 
-                    day: 'numeric' 
+                  {new Date(entry.date).toLocaleDateString('en-US', {
+                    weekday: 'long',
+                    month: 'short',
+                    day: 'numeric'
                   })}
                 </Text>
                 {entry.items.map((item, i) => (

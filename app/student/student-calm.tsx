@@ -755,7 +755,7 @@ export default function StudentCalm() {
         >
           <Text style={styles.backButtonText}>← Back</Text>
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>🧘‍♀️ Student Calm Space</Text>
+  <Text style={styles.headerTitle}>Student Calm Space</Text>
       </View>
 
       <ScrollView style={styles.content} contentContainerStyle={styles.contentContainer}>

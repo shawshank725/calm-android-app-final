@@ -118,7 +118,7 @@ export default function MoodPlaylists() {
         <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
           <Text style={styles.backButtonText}>← Back</Text>
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>🎵 Mood Playlists</Text>
+  <Text style={styles.headerTitle}>Mood Playlists</Text>
       </View>
 
       <ScrollView style={styles.content} contentContainerStyle={styles.contentContainer}>

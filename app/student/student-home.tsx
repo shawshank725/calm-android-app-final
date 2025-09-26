@@ -904,9 +904,9 @@ export default function StudentHome() {
               onPress={() => setShowToolkitPage(false)}
               style={{ paddingVertical: 8, paddingHorizontal: 16, backgroundColor: Colors.white, borderRadius: 15, marginRight: 15, borderWidth: 2, borderColor: Colors.primary }}
             >
-              <Text style={{ color: Colors.primary, fontSize: 16, fontWeight: 'bold' }}>← Back</Text>
+              <Text style={{ color: Colors.primary, fontSize: 10, fontWeight: 'bold' }}>← Back</Text>
             </TouchableOpacity>
-            <Text style={{ color: Colors.primary, fontSize: 24, fontWeight: 'bold', flex: 1, textAlign: 'center', marginRight: 60 }}>🛠️ Self-help Toolkit</Text>
+            <Text style={{ color: Colors.primary, fontSize: 15, fontWeight: 'bold', flex: 1, textAlign: 'center', marginRight: 60 }}>Self-help Toolkit</Text>
           </View>
 
           <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', marginTop: 50, paddingHorizontal: 20 }}>
@@ -940,7 +940,7 @@ export default function StudentHome() {
                 onPress={() => router.push(`./toolkit-movement?registration=${studentRegNo}`)}
               >
                 <Text style={{ fontSize: 32, marginBottom: 8 }}>🏃</Text>
-                <Text style={{ color: Colors.primary, fontSize: 14, fontWeight: 'bold', textAlign: 'center' }}>Body & Movement Exercise</Text>
+                <Text style={{ color: Colors.primary, fontSize: 14, fontWeight: 'bold', textAlign: 'center' }}>Movement Exercise</Text>
               </TouchableOpacity>
             </View>
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', width: '100%', marginTop: 10, paddingHorizontal: 10 }}>
