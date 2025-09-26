@@ -4,6 +4,7 @@ import { StatusBar } from 'expo-status-bar';
 import { ActivityIndicator, View } from 'react-native';
 import { Colors } from '../constants/Colors';
 import '../constants/GlobalStyles'; // Import global styles to make Tinos font available
+import QueryProvider from '../providers/QueryProvider';
 
 export default function RootLayout() {
   const [loaded] = useFonts({
@@ -23,8 +24,12 @@ export default function RootLayout() {
 
   return (
     <>
+    <QueryProvider>
       <Stack screenOptions={{ headerShown: false }} />
       <StatusBar style="auto" />
+    </QueryProvider>
     </>
   );
+
 }
+

@@ -47,7 +47,7 @@ interface ReceivedMessage {
   sender_id: string;
   receiver_id: string;
   sender_name: string;
-  sender_type: 'student' | 'expert' | 'peer' | 'admin';
+  sender_type: 'STUDENT' | 'EXPERT' | 'PEER' | 'ADMIN';
   message: string;
   created_at: string;
   is_read: boolean;
@@ -59,7 +59,7 @@ interface ChatMessage {
   sender_id: string;
   receiver_id: string;
   sender_name: string;
-  sender_type: 'student' | 'expert' | 'peer' | 'admin';
+  sender_type: 'STUDENT' | 'EXPERT' | 'PEER' | 'ADMIN';
   message: string;
   created_at: string;
   is_read?: boolean;
@@ -440,7 +440,7 @@ export default function MessagesPage() {
 
         messages.forEach(msg => {
           const participantId = msg.sender_id === currentStudentId ? msg.receiver_id : msg.sender_id;
-          const participantType = msg.sender_id === currentStudentId ? 'student' : msg.sender_type;
+          const participantType = msg.sender_id === currentStudentId ? 'STUDENT' : msg.sender_type;
 
           if (!conversationMap.has(participantId)) {
             // For new conversations, try to get the participant name from any message
@@ -738,9 +738,9 @@ export default function MessagesPage() {
             <Text style={styles.senderTypeLabel}>
               {isChatDeleteMode
                 ? 'Tap to delete all messages with this contact'
-                : item.sender_type === 'expert' ? 'Mental Health Expert' :
-                  item.sender_type === 'peer' ? 'Peer Listener' :
-                  item.sender_type === 'admin' ? 'Administrator' : 'Contact'}
+                : item.sender_type === 'EXPERT' ? 'Mental Health Expert' :
+                  item.sender_type === 'PEER' ? 'Peer Listener' :
+                  item.sender_type === 'ADMIN' ? 'Administrator' : 'Contact'}
             </Text>
               {!isSelectMode && (
                 <View style={styles.chatButtonWrapper}>

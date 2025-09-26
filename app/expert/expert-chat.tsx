@@ -1,5 +1,5 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
     Alert,
     FlatList,
@@ -16,7 +16,7 @@ interface ChatMessage {
     sender_id: string;
     receiver_id: string;
     sender_name: string;
-    sender_type: 'expert' | 'student' | 'peer' | 'admin';
+    sender_type: 'EXPERT' | 'STUDENT' | 'PEER' | 'ADMIN';
     message: string;
     created_at: string;
     is_read?: boolean;
@@ -133,8 +133,9 @@ export default function ExpertChatPage() {
             sender_id: params.expertReg,
             receiver_id: params.studentReg,
             sender_name: params.expertName || 'Expert',
-            sender_type: 'expert' as const,
+            sender_type: 'EXPERT' as const,
             message: newMessage.trim(),
+            created_at: new Date(),
         };
 
         console.log('Sending message with data:', messageData);
@@ -211,11 +212,11 @@ export default function ExpertChatPage() {
     const renderMessageItem = ({ item }: { item: ChatMessage }) => (
         <View style={[
             styles.messageItem,
-            item.sender_type === 'expert' ? styles.expertMessage : styles.studentMessage
+            item.sender_type === 'EXPERT' ? styles.expertMessage : styles.studentMessage
         ]}>
             <View style={styles.messageHeader}>
                 <Text style={styles.senderName}>
-                    {item.sender_type === 'expert' ? '👨‍⚕️' : '👨‍🎓'} {item.sender_name}
+                    {item.sender_type === 'EXPERT' ? '👨‍⚕️' : '👨‍🎓'} {item.sender_name}
                 </Text>
                 <Text style={styles.timestamp}>{formatTimestamp(item.created_at)}</Text>
             </View>

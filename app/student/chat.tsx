@@ -26,7 +26,7 @@ interface ChatMessage {
   message: string;
   created_at: string;
   sender_name: string;
-  sender_type: 'student' | 'expert' | 'peer' | 'admin';
+  sender_type: 'STUDENT' | 'EXPERT' | 'PEER' | 'ADMIN';
   is_read?: boolean;
 }
 
@@ -142,7 +142,7 @@ export default function Chat() {
       message: newMessage.trim(),
       created_at: new Date().toISOString(),
       sender_name: studentInfo.name,
-      sender_type: 'student' as const,
+      sender_type: 'STUDENT' as const,
     };
 
     setChatMessages(prev => [...prev, tempMessage]);
@@ -361,7 +361,7 @@ export default function Chat() {
       sender_id: studentInfo.registration,
       receiver_id: participantId as string,
       sender_name: studentInfo.name,
-      sender_type: 'student' as const,
+      sender_type: 'STUDENT' as const,
       message: textToSend,
     };
 

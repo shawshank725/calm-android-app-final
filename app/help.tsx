@@ -22,7 +22,7 @@ export default function Help() {
         .insert([
           {
             message: message,
-            sender_type: 'Student',
+            sender_type: 'STUDENT',
             created_at: new Date().toISOString(),
           }
         ]);

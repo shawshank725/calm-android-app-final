@@ -1,6 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
     Alert,
     FlatList,
@@ -14,7 +14,7 @@ import { supabase } from '../../lib/supabase';
 
 interface Student {
     id: string;
-    name: string;
+    user_name: string;
     registration_number: string;
     email: string;
     course: string;
@@ -50,7 +50,7 @@ export default function ConsultationPage() {
         } else {
             const filtered = students.filter(student =>
                 student.registration_number.toLowerCase().includes(searchText.toLowerCase()) ||
-                student.name.toLowerCase().includes(searchText.toLowerCase()) ||
+                student.user_name.toLowerCase().includes(searchText.toLowerCase()) ||
                 student.email.toLowerCase().includes(searchText.toLowerCase())
             );
             setFilteredStudents(filtered);
@@ -83,7 +83,7 @@ export default function ConsultationPage() {
             const { data: studentsData, error } = await supabase
                 .from('students')
                 .select('*')
-                .order('name');
+                .order('user_name');
 
             if (error) {
                 console.error('Error loading students:', error);
@@ -117,7 +117,7 @@ export default function ConsultationPage() {
             pathname: './expert-chat',
             params: {
                 studentId: student.id,
-                studentName: student.name,
+                studentName: student.user_name,
                 studentReg: student.registration_number,
                 studentEmail: student.email,
                 studentCourse: student.course,
@@ -133,7 +133,7 @@ export default function ConsultationPage() {
             onPress={() => selectStudent(item)}
         >
             <View style={styles.studentInfo}>
-                <Text style={styles.studentName}>👨‍🎓 {item.name}</Text>
+                <Text style={styles.studentName}>👨‍🎓 {item.user_name}</Text>
                 <Text style={styles.studentDetails}>
                     Roll No: {item.registration_number}
                 </Text>

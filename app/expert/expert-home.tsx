@@ -74,7 +74,7 @@ export default function ExpertHome() {
       const { data: studentsData, error } = await supabase
         .from('students')
         .select('*')
-        .order('name');
+        .order('user_name');
 
       if (error) {
         console.error('Error loading patients:', error);
@@ -357,7 +357,7 @@ export default function ExpertHome() {
             patients.map((patient, index) => (
               <View key={`patient-${patient.id}-${index}`} style={styles.patientCard}>
                 <View style={styles.patientHeader}>
-                  <Text style={styles.patientName}>{patient.name}</Text>
+                  <Text style={styles.patientName}>{patient.user_name}</Text>
                   <View style={styles.statusBadge}>
                     <Text style={styles.statusText}>Active</Text>
                   </View>

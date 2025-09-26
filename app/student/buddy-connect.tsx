@@ -64,7 +64,7 @@ export default function BuddyConnect() {
     console.log('Sending message:', { input, studentInfo });
 
     const messageData = {
-      sender_type: 'student',
+      sender_type: 'STUDENT',
       sender_reg: studentInfo.reg,
       sender_name: studentInfo.name || 'Student',
       content: input.trim(),
@@ -107,7 +107,7 @@ export default function BuddyConnect() {
           keyExtractor={item => item.id?.toString() || Math.random().toString()}
           renderItem={({ item }) => (
             <View style={[styles.messageBubble,
-                  item.sender_type === 'student' && item.sender_reg === studentInfo.reg
+                  item.sender_type === 'STUDENT' && item.sender_reg === studentInfo.reg
                   ? styles.myMessage
                   : item.sender_type === 'expert'
                   ? styles.expertMessage
