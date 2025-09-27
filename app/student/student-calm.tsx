@@ -371,7 +371,7 @@ export default function StudentCalm() {
         try {
           const { data: activeSessions, error: activeError } = await supabase
             .from('book_request')
-            .select('id,status,expert_name,session_date,session_time')
+            .select('id,status,expert_id,expert_name,session_date,session_time')
             .eq('student_reg', studentInfo.registration)
             .in('status', ['pending', 'confirmed'])
             .limit(1);
@@ -544,7 +544,7 @@ export default function StudentCalm() {
         try {
           const { data: activeSessions, error: activeError } = await supabase
             .from('book_request')
-            .select('id,status,expert_name,session_date,session_time')
+            .select('id,status,expert_id,expert_name,session_date,session_time')
             .eq('student_reg', studentInfo.registration)
             .in('status', ['pending', 'confirmed'])
             .limit(1);

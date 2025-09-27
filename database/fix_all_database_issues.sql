@@ -69,7 +69,7 @@ BEGIN
     END IF;
 END $$;
 
--- 3. Create book_request table with expert_id column
+-- 3. Create book_request table with expert_id AND expert_name columns
 CREATE TABLE IF NOT EXISTS public.book_request (
     id SERIAL PRIMARY KEY,
     student_reg TEXT NOT NULL,
@@ -81,6 +81,8 @@ CREATE TABLE IF NOT EXISTS public.book_request (
     session_type TEXT NOT NULL,
     preferred_date DATE,
     preferred_time TIME,
+    session_date DATE,
+    session_time TIME,
     message TEXT,
     status TEXT DEFAULT 'pending',
     created_at TIMESTAMP DEFAULT NOW(),
@@ -88,11 +90,31 @@ CREATE TABLE IF NOT EXISTS public.book_request (
     FOREIGN KEY (expert_id) REFERENCES experts(id)
 );
 
--- Ensure expert_id column exists in book_request
+-- Ensure all required columns exist in book_request
 DO $$
 BEGIN
+    -- Add expert_id column if it doesn't exist
     IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'book_request' AND column_name = 'expert_id') THEN
         ALTER TABLE book_request ADD COLUMN expert_id INTEGER;
+    END IF;
+    
+    -- Add expert_name column if it doesn't exist
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'book_request' AND column_name = 'expert_name') THEN
+        ALTER TABLE book_request ADD COLUMN expert_name TEXT;
+    END IF;
+    
+    -- Add session_date column if it doesn't exist
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'book_request' AND column_name = 'session_date') THEN
+        ALTER TABLE book_request ADD COLUMN session_date DATE;
+    END IF;
+    
+    -- Add session_time column if it doesn't exist
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'book_request' AND column_name = 'session_time') THEN
+        ALTER TABLE book_request ADD COLUMN session_time TIME;
+    END IF;
+    
+    -- Add foreign key constraint if it doesn't exist
+    IF NOT EXISTS (SELECT 1 FROM information_schema.table_constraints WHERE table_name = 'book_request' AND constraint_name = 'fk_book_request_expert') THEN
         ALTER TABLE book_request ADD CONSTRAINT fk_book_request_expert 
             FOREIGN KEY (expert_id) REFERENCES experts(id);
     END IF;
@@ -128,15 +150,22 @@ WHERE NOT EXISTS (SELECT 1 FROM peer_listeners LIMIT 1);
 
 -- 7. Enable Row Level Security and create policies
 ALTER TABLE experts ENABLE ROW LEVEL SECURITY;
-ALTER TABLE peer_listeners ENABLE ROW LEVEL SECURITY;
+ALTER TABLE peer_listeners ENABLE ROW LEVEL SECURITY;  
 ALTER TABLE book_request ENABLE ROW LEVEL SECURITY;
 
--- Create policies for public read access (adjust as needed for your security requirements)
-CREATE POLICY IF NOT EXISTS "Enable read access for all users" ON experts FOR SELECT USING (true);
-CREATE POLICY IF NOT EXISTS "Enable read access for all users" ON peer_listeners FOR SELECT USING (true);
-CREATE POLICY IF NOT EXISTS "Enable read access for all users" ON book_request FOR SELECT USING (true);
-CREATE POLICY IF NOT EXISTS "Enable insert access for all users" ON book_request FOR INSERT WITH CHECK (true);
-CREATE POLICY IF NOT EXISTS "Enable update access for all users" ON book_request FOR UPDATE USING (true);
+-- Drop existing policies if they exist to avoid conflicts
+DROP POLICY IF EXISTS "Enable read access for all users" ON experts;
+DROP POLICY IF EXISTS "Enable read access for all users" ON peer_listeners;
+DROP POLICY IF EXISTS "Enable read access for all users" ON book_request;
+DROP POLICY IF EXISTS "Enable insert access for all users" ON book_request;
+DROP POLICY IF EXISTS "Enable update access for all users" ON book_request;
+
+-- Create policies for public access (adjust as needed for your security requirements)
+CREATE POLICY "Enable read access for all users" ON experts FOR SELECT USING (true);
+CREATE POLICY "Enable read access for all users" ON peer_listeners FOR SELECT USING (true);
+CREATE POLICY "Enable read access for all users" ON book_request FOR SELECT USING (true);
+CREATE POLICY "Enable insert access for all users" ON book_request FOR INSERT WITH CHECK (true);
+CREATE POLICY "Enable update access for all users" ON book_request FOR UPDATE USING (true);
 
 -- 8. Create indexes for better performance
 CREATE INDEX IF NOT EXISTS idx_experts_registration ON experts(registration_number);
@@ -151,7 +180,8 @@ GRANT USAGE ON SCHEMA public TO anon, authenticated;
 GRANT ALL ON ALL TABLES IN SCHEMA public TO anon, authenticated;
 GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO anon, authenticated;
 
-COMMIT;
+-- 10. Refresh schema cache
+NOTIFY pgrst, 'reload schema';
 
 -- Success message
-SELECT 'Database setup completed successfully! All tables created and configured.' as status;
+SELECT 'Database setup completed successfully! All tables created and configured with expert_name and expert_id columns.' as status;
