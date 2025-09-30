@@ -12,6 +12,14 @@ export default function FrontPage() {
   const [loginInput, setLoginInput] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [selectedUserType, setSelectedUserType] = useState('student');
+
+  const userTypes = [
+    { key: 'student', label: 'Student', table: 'students', route: '/student/student-home' },
+    { key: 'expert', label: 'Expert', table: 'experts', route: '/expert/expert-home' },
+    { key: 'peer_listener', label: 'Peer Listener', table: 'peer_listeners', route: '/peer-listener-login' },
+    { key: 'admin', label: 'Admin', table: null, route: '/admin/admin-home' }
+  ];
 
   const [loaded] = useFonts({
     Agbalumo: require('../assets/fonts/Agbalumo-Regular.ttf'),
@@ -157,6 +165,49 @@ export default function FrontPage() {
                 Login
               </Text>
 
+              {/* User Type Selector */}
+              <Text style={{
+                fontSize: 16,
+                color: '#666',
+                marginBottom: 8,
+                fontFamily: 'Tinos'
+              }}>
+                Login as
+              </Text>
+              <View style={{
+                flexDirection: 'row',
+                flexWrap: 'wrap',
+                marginBottom: 20,
+                justifyContent: 'space-between'
+              }}>
+                {userTypes.map((type) => (
+                  <TouchableOpacity
+                    key={type.key}
+                    style={{
+                      backgroundColor: selectedUserType === type.key ? '#4F21A2' : 'transparent',
+                      borderWidth: 2,
+                      borderColor: '#4F21A2',
+                      paddingVertical: 8,
+                      paddingHorizontal: 12,
+                      borderRadius: 8,
+                      marginBottom: 8,
+                      minWidth: '47%',
+                      alignItems: 'center'
+                    }}
+                    onPress={() => setSelectedUserType(type.key)}
+                  >
+                    <Text style={{
+                      color: selectedUserType === type.key ? 'white' : '#4F21A2',
+                      fontSize: 14,
+                      fontWeight: 'bold',
+                      fontFamily: 'Tinos'
+                    }}>
+                      {type.label}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
               <Text style={{
                 fontSize: 16,
                 color: '#666',
@@ -220,6 +271,7 @@ export default function FrontPage() {
                     setLoginModalVisible(false);
                     setLoginInput('');
                     setPassword('');
+                    setSelectedUserType('student');
                   }}
                 >
                   <Text style={{
@@ -244,88 +296,80 @@ export default function FrontPage() {
                   onPress={async () => {
                     if (loginInput.trim() && password.trim()) {
                       setIsLoading(true);
-                      
+
                       try {
-                        // Check admin credentials first
-                        if (loginInput.trim() === '241302262' && password.trim() === 'Calmspaces@741') {
-                          await AsyncStorage.setItem('userType', 'admin');
-                          await AsyncStorage.setItem('currentAdminData', JSON.stringify({
-                            registration: '241302262',
-                            role: 'admin'
-                          }));
-                          setLoginModalVisible(false);
-                          setLoginInput('');
-                          setPassword('');
-                          router.push('/admin/admin-home');
-                          setIsLoading(false);
-                          return;
+                        const selectedType = userTypes.find(type => type.key === selectedUserType);
+                        
+                        // Handle admin login (hardcoded credentials)
+                        if (selectedUserType === 'admin') {
+                          if (loginInput.trim() === '241302262' && password.trim() === 'Calmspaces@741') {
+                            await AsyncStorage.setItem('userType', 'admin');
+                            await AsyncStorage.setItem('currentAdminData', JSON.stringify({
+                              registration: '241302262',
+                              role: 'admin'
+                            }));
+                            setLoginModalVisible(false);
+                            setLoginInput('');
+                            setPassword('');
+                            setSelectedUserType('student');
+                            router.push('/admin/admin-home');
+                            setIsLoading(false);
+                            return;
+                          } else {
+                            Alert.alert('Login Failed', 'Invalid admin credentials.');
+                            setIsLoading(false);
+                            return;
+                          }
                         }
 
-                        // Check students table
-                        const { data: studentData, error: studentError } = await supabase
-                          .from('students')
-                          .select('*')
-                          .or(`registration.eq.${loginInput.trim()},email.eq.${loginInput.trim()}`)
-                          .eq('password', password.trim())
-                          .single();
+                        // Handle database-based authentication for other user types
+                        if (selectedType && selectedType.table) {
+                          const { data: userData, error: userError } = await supabase
+                            .from(selectedType.table)
+                            .select('*')
+                            .or(`registration.eq.${loginInput.trim()},email.eq.${loginInput.trim()}`)
+                            .eq('password', password.trim())
+                            .single();
 
-                        if (studentData && !studentError) {
-                          await AsyncStorage.setItem('userType', 'student');
-                          await AsyncStorage.setItem('currentStudentData', JSON.stringify(studentData));
-                          await AsyncStorage.setItem('currentStudentReg', studentData.registration);
-                          setLoginModalVisible(false);
-                          setLoginInput('');
-                          setPassword('');
-                          router.push(`/student/student-home?registration=${studentData.registration}`);
-                          setIsLoading(false);
-                          return;
-                        }
-
-                        // Check experts table
-                        const { data: expertData, error: expertError } = await supabase
-                          .from('experts')
-                          .select('*')
-                          .or(`registration.eq.${loginInput.trim()},email.eq.${loginInput.trim()}`)
-                          .eq('password', password.trim())
-                          .single();
-
-                        if (expertData && !expertError) {
-                          await AsyncStorage.setItem('userType', 'expert');
-                          await AsyncStorage.setItem('currentExpertData', JSON.stringify(expertData));
-                          await AsyncStorage.setItem('currentExpertReg', expertData.registration);
-                          setLoginModalVisible(false);
-                          setLoginInput('');
-                          setPassword('');
-                          router.push(`/expert/expert-home?registration=${expertData.registration}`);
-                          setIsLoading(false);
-                          return;
-                        }
-
-                        // Check peer_listeners table
-                        const { data: peerData, error: peerError } = await supabase
-                          .from('peer_listeners')
-                          .select('*')
-                          .or(`registration.eq.${loginInput.trim()},email.eq.${loginInput.trim()}`)
-                          .eq('password', password.trim())
-                          .single();
-
-                        if (peerData && !peerError) {
-                          await AsyncStorage.setItem('userType', 'peer_listener');
-                          await AsyncStorage.setItem('currentPeerData', JSON.stringify(peerData));
-                          await AsyncStorage.setItem('currentPeerReg', peerData.registration);
-                          setLoginModalVisible(false);
-                          setLoginInput('');
-                          setPassword('');
-                          // Add peer listener home route when available
-                          router.push('/peer-listener-login'); // Fallback route
-                          setIsLoading(false);
-                          return;
+                          if (userData && !userError) {
+                            // Store user data based on type
+                            await AsyncStorage.setItem('userType', selectedUserType);
+                            
+                            if (selectedUserType === 'student') {
+                              await AsyncStorage.setItem('currentStudentData', JSON.stringify(userData));
+                              await AsyncStorage.setItem('currentStudentReg', userData.registration);
+                            } else if (selectedUserType === 'expert') {
+                              await AsyncStorage.setItem('currentExpertData', JSON.stringify(userData));
+                              await AsyncStorage.setItem('currentExpertReg', userData.registration);
+                            } else if (selectedUserType === 'peer_listener') {
+                              await AsyncStorage.setItem('currentPeerData', JSON.stringify(userData));
+                              await AsyncStorage.setItem('currentPeerReg', userData.registration);
+                            }
+                            
+                            // Clear form and navigate
+                            setLoginModalVisible(false);
+                            setLoginInput('');
+                            setPassword('');
+                            setSelectedUserType('student');
+                            
+                            // Navigate to appropriate route
+                            if (selectedUserType === 'student') {
+                              router.push(`/student/student-home?registration=${userData.registration}`);
+                            } else if (selectedUserType === 'expert') {
+                              router.push(`/expert/expert-home?registration=${userData.registration}`);
+                            } else if (selectedUserType === 'peer_listener') {
+                              router.push('/peer-listener-login');
+                            }
+                            
+                            setIsLoading(false);
+                            return;
+                          }
                         }
 
                         // No match found
-                        Alert.alert('Login Failed', 'Invalid registration number/email or password. Please check your credentials and try again.');
+                        Alert.alert('Login Failed', `Invalid ${selectedType?.label.toLowerCase()} credentials. Please check your registration number/email and password.`);
                         setIsLoading(false);
-                        
+
                       } catch (error) {
                         console.error('Login error:', error);
                         Alert.alert('Error', 'An error occurred during login. Please try again.');
