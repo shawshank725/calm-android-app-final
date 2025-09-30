@@ -123,7 +123,31 @@ export default function PeerListenerRegister() {
         }
       }
 
-      // Register new peer listener
+      // Step 1: Insert into user_request table with auto-approved status
+      const { error: requestInsertError } = await supabase
+        .from('user_request')
+        .insert([
+          {
+            name: formData.name.trim(),
+            username: formData.username.trim(),
+            role: 'peer_listener',
+            registration: formData.studentId.trim(),
+            email: formData.email.trim().toLowerCase(),
+            course: formData.course.trim(),
+            password: formData.password,
+            phone: formData.phone.trim(),
+            year: formData.year.trim(),
+            status: 'approved',
+            created_at: new Date().toISOString()
+          }
+        ]);
+
+      if (requestInsertError) {
+        Alert.alert('Error', requestInsertError.message);
+        return;
+      }
+
+      // Step 2: Automatically add to peer_listeners table
       const { data, error } = await supabase
         .from('peer_listeners')
         .insert([
@@ -132,11 +156,12 @@ export default function PeerListenerRegister() {
             email: formData.email.trim().toLowerCase(),
             username: formData.username.trim(),
             password: formData.password, // Add password field
-            student_id: formData.studentId.trim(),
+            registration: formData.studentId.trim(), // Use registration field consistently
             phone: formData.phone.trim(),
             course: formData.course.trim(),
             year: formData.year.trim(),
-            status: 'pending' // Admin needs to approve
+            status: 'approved', // Auto-approved
+            created_at: new Date().toISOString()
           }
         ])
         .select();
@@ -193,12 +218,12 @@ export default function PeerListenerRegister() {
       await AsyncStorage.setItem('pendingPeerListener', JSON.stringify(formData));
 
       Alert.alert(
-        'Registration Submitted!',
-        'Your application has been submitted successfully. You will receive an email confirmation and training details within 2-3 business days.\n\nStatus: Pending Admin Approval',
+        'Registration Successful!',
+        `Welcome ${formData.name}! Your peer listener account has been created successfully. You can now log in and start helping others.`,
         [
           {
             text: 'OK',
-            onPress: () => router.push('/select')
+            onPress: () => router.push('/peer-listener-login')
           }
         ]
       );

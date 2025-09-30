@@ -37,7 +37,7 @@ export default function StudentRegister() {
         const { data: existingStudent, error: studentError } = await supabase
           .from('students')
           .select('*')
-          .or(`registration_number.eq.${registrationNumber},email.eq.${email},username.eq.${username}`);
+          .or(`registration.eq.${registrationNumber},email.eq.${email},username.eq.${username}`);
 
         if (studentError) {
           Alert.alert('Error', studentError.message);
@@ -49,12 +49,11 @@ export default function StudentRegister() {
           return;
         }
 
-        // Check if there's already a pending request for this registration number
+        // Check if there's already a request for this registration number
         const { data: existingRequest, error: requestError } = await supabase
-          .from('user_requests')
+          .from('user_request')
           .select('*')
-          .eq('registration_number', registrationNumber)
-          .in('status', ['pending', 'approved']);
+          .eq('registration', registrationNumber);
 
         if (requestError) {
           Alert.alert('Error', requestError.message);
@@ -62,40 +61,58 @@ export default function StudentRegister() {
         }
 
         if (existingRequest && existingRequest.length > 0) {
-          const request = existingRequest[0];
-          if (request.status === 'pending') {
-            Alert.alert('Request Pending', 'Your registration request is already pending admin approval.');
-          } else if (request.status === 'approved') {
-            Alert.alert('Already Approved', 'Your registration has been approved. Please try logging in.');
-          }
+          Alert.alert('Already Registered', 'This registration number is already registered. Please try logging in.');
           return;
         }
 
-        // Insert registration request
-        const { error: insertError } = await supabase
-          .from('user_requests')
+        // Step 1: Insert into user_request table with auto-approved status
+        const { error: requestInsertError } = await supabase
+          .from('user_request')
           .insert([
             {
-              user_name: name,
-              username: username, // Ensure username is properly stored
-              user_type: 'Student',
-              registration_number: registrationNumber,
+              name: name,
+              username: username,
+              role: 'student',
+              registration: registrationNumber,
               email: email,
               course: course,
               password: password,
               phone: phone,
               dob: dob,
-              status: 'pending',
-              details: `Student registration request for ${course} - Username: ${username}`
+              status: 'approved',
+              created_at: new Date().toISOString()
             }
           ]);
 
-        if (insertError) {
-          Alert.alert('Error', insertError.message);
-        } else {
-          Alert.alert('Request Submitted', `Thank you, ${name}! Your registration request has been submitted and is pending admin approval. You will be notified once it's processed.`);
-          router.replace('./student-login');
+        if (requestInsertError) {
+          Alert.alert('Error', requestInsertError.message);
+          return;
         }
+
+        // Step 2: Automatically add to students table
+        const { error: studentInsertError } = await supabase
+          .from('students')
+          .insert([
+            {
+              name: name,
+              username: username,
+              registration: registrationNumber,
+              email: email,
+              course: course,
+              password: password,
+              phone: phone,
+              dob: dob,
+              created_at: new Date().toISOString()
+            }
+          ]);
+
+        if (studentInsertError) {
+          Alert.alert('Error', studentInsertError.message);
+          return;
+        }
+
+        Alert.alert('Registration Successful', `Welcome ${name}! Your student account has been created successfully. You can now log in.`);
+        router.replace('./student-login');
       } catch (error) {
         console.error('Registration error:', error);
         Alert.alert('Error', 'An unexpected error occurred. Please try again.');
