@@ -1,14 +1,17 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useFonts } from 'expo-font';
 import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, Modal, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { supabase } from '../lib/supabase';
 
 export default function FrontPage() {
   const router = useRouter();
   const [loginModalVisible, setLoginModalVisible] = useState(false);
   const [loginInput, setLoginInput] = useState('');
   const [password, setPassword] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
 
   const [loaded] = useFonts({
     Agbalumo: require('../assets/fonts/Agbalumo-Regular.ttf'),
@@ -238,15 +241,96 @@ export default function FrontPage() {
                     borderRadius: 10,
                     flex: 0.45,
                   }}
-                  onPress={() => {
+                  onPress={async () => {
                     if (loginInput.trim() && password.trim()) {
-                      // Handle login logic here
-                      Alert.alert('Login', `Attempting login with: ${loginInput}`);
-                      setLoginModalVisible(false);
-                      setLoginInput('');
-                      setPassword('');
-                      // You can add actual authentication logic here
-                      router.push('/select');
+                      setIsLoading(true);
+                      
+                      try {
+                        // Check admin credentials first
+                        if (loginInput.trim() === '241302262' && password.trim() === 'Calmspaces@741') {
+                          await AsyncStorage.setItem('userType', 'admin');
+                          await AsyncStorage.setItem('currentAdminData', JSON.stringify({
+                            registration: '241302262',
+                            role: 'admin'
+                          }));
+                          setLoginModalVisible(false);
+                          setLoginInput('');
+                          setPassword('');
+                          router.push('/admin/admin-home');
+                          setIsLoading(false);
+                          return;
+                        }
+
+                        // Check students table
+                        const { data: studentData, error: studentError } = await supabase
+                          .from('students')
+                          .select('*')
+                          .or(`registration.eq.${loginInput.trim()},email.eq.${loginInput.trim()}`)
+                          .eq('password', password.trim())
+                          .single();
+
+                        if (studentData && !studentError) {
+                          await AsyncStorage.setItem('userType', 'student');
+                          await AsyncStorage.setItem('currentStudentData', JSON.stringify(studentData));
+                          await AsyncStorage.setItem('currentStudentReg', studentData.registration);
+                          setLoginModalVisible(false);
+                          setLoginInput('');
+                          setPassword('');
+                          router.push(`/student/student-home?registration=${studentData.registration}`);
+                          setIsLoading(false);
+                          return;
+                        }
+
+                        // Check experts table
+                        const { data: expertData, error: expertError } = await supabase
+                          .from('experts')
+                          .select('*')
+                          .or(`registration.eq.${loginInput.trim()},email.eq.${loginInput.trim()}`)
+                          .eq('password', password.trim())
+                          .single();
+
+                        if (expertData && !expertError) {
+                          await AsyncStorage.setItem('userType', 'expert');
+                          await AsyncStorage.setItem('currentExpertData', JSON.stringify(expertData));
+                          await AsyncStorage.setItem('currentExpertReg', expertData.registration);
+                          setLoginModalVisible(false);
+                          setLoginInput('');
+                          setPassword('');
+                          router.push(`/expert/expert-home?registration=${expertData.registration}`);
+                          setIsLoading(false);
+                          return;
+                        }
+
+                        // Check peer_listeners table
+                        const { data: peerData, error: peerError } = await supabase
+                          .from('peer_listeners')
+                          .select('*')
+                          .or(`registration.eq.${loginInput.trim()},email.eq.${loginInput.trim()}`)
+                          .eq('password', password.trim())
+                          .single();
+
+                        if (peerData && !peerError) {
+                          await AsyncStorage.setItem('userType', 'peer_listener');
+                          await AsyncStorage.setItem('currentPeerData', JSON.stringify(peerData));
+                          await AsyncStorage.setItem('currentPeerReg', peerData.registration);
+                          setLoginModalVisible(false);
+                          setLoginInput('');
+                          setPassword('');
+                          // Add peer listener home route when available
+                          router.push('/peer-listener-login'); // Fallback route
+                          setIsLoading(false);
+                          return;
+                        }
+
+                        // No match found
+                        Alert.alert('Login Failed', 'Invalid registration number/email or password. Please check your credentials and try again.');
+                        setIsLoading(false);
+                        
+                      } catch (error) {
+                        console.error('Login error:', error);
+                        Alert.alert('Error', 'An error occurred during login. Please try again.');
+                        setIsLoading(false);
+                      }
                     } else {
                       Alert.alert('Error', 'Please fill in both fields');
                     }
@@ -259,7 +343,7 @@ export default function FrontPage() {
                     textAlign: 'center',
                     fontFamily: 'Tinos'
                   }}>
-                    Login
+                    {isLoading ? 'Logging in...' : 'Login'}
                   </Text>
                 </TouchableOpacity>
               </View>
