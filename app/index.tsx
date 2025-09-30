@@ -8,6 +8,7 @@ export default function FrontPage() {
   const router = useRouter();
 
   const [loaded] = useFonts({
+    Agbalumo: require('../assets/fonts/Agbalumo-Regular.ttf'),
     Tinos: require('../assets/fonts/Tinos-Regular.ttf'),
     IrishGrover: require('../assets/fonts/IrishGrover-Regular.ttf'),
     Roboto: require('../assets/fonts/Roboto.ttf'),
