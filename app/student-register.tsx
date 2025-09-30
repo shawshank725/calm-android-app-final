@@ -33,25 +33,25 @@ export default function StudentRegister() {
   const handleRegister = async () => {
     if (name && username && registrationNumber && course && phone && dob && email && password) {
       try {
-        // Check if registration number, email, or username already exists in actual tables
-        const { data: existingStudent, error: studentError } = await supabase
-          .from('students')
+        // Check if registration number, email, or username already exists in user_requests table
+        const { data: existingUser, error: userError } = await supabase
+          .from('user_requests')
           .select('*')
           .or(`registration.eq.${registrationNumber},email.eq.${email},username.eq.${username}`);
 
-        if (studentError) {
-          Alert.alert('Error', studentError.message);
+        if (userError) {
+          Alert.alert('Error', userError.message);
           return;
         }
 
-        if (existingStudent && existingStudent.length > 0) {
+        if (existingUser && existingUser.length > 0) {
           Alert.alert('Error', 'Registration number, email, or username already exists.');
           return;
         }
 
         // Check if there's already a request for this registration number
         const { data: existingRequest, error: requestError } = await supabase
-          .from('user_request')
+          .from('user_requests')
           .select('*')
           .eq('registration', registrationNumber);
 
@@ -65,9 +65,9 @@ export default function StudentRegister() {
           return;
         }
 
-        // Step 1: Insert into user_request table with auto-approved status
+        // Insert into user_requests table with auto-approved status
         const { error: requestInsertError } = await supabase
-          .from('user_request')
+          .from('user_requests')
           .insert([
             {
               name: name,
@@ -86,28 +86,6 @@ export default function StudentRegister() {
 
         if (requestInsertError) {
           Alert.alert('Error', requestInsertError.message);
-          return;
-        }
-
-        // Step 2: Automatically add to students table
-        const { error: studentInsertError } = await supabase
-          .from('students')
-          .insert([
-            {
-              name: name,
-              username: username,
-              registration: registrationNumber,
-              email: email,
-              course: course,
-              password: password,
-              phone: phone,
-              dob: dob,
-              created_at: new Date().toISOString()
-            }
-          ]);
-
-        if (studentInsertError) {
-          Alert.alert('Error', studentInsertError.message);
           return;
         }
 

@@ -73,9 +73,9 @@ export default function PeerListenerRegister() {
     setIsLoading(true);
 
     try {
-      // Check if peer_listeners table exists and if username or email already exists
+      // Check if user_requests table exists and if username or email already exists
       const { data: existingUsers, error: checkError } = await supabase
-        .from('peer_listeners')
+        .from('user_requests')
         .select('username, email')
         .or(`username.eq.${formData.username},email.eq.${formData.email}`);
 
@@ -86,14 +86,14 @@ export default function PeerListenerRegister() {
         if (checkError.code === '42P01') {
           Alert.alert(
             '🔧 Database Setup Required',
-            'The peer listener system is not set up yet. The database table "peer_listeners" does not exist.\n\n📋 What you can do:\n• Contact your administrator\n• Ask them to run the database setup\n• Try again after setup is complete',
+            'The registration system is not set up yet. The database table "user_requests" does not exist.\n\n📋 What you can do:\n• Contact your administrator\n• Ask them to run the database setup\n• Try again after setup is complete',
             [
               {
                 text: '📋 Setup Guide',
                 onPress: () => {
                   Alert.alert(
                     '👨‍💻 Administrator Instructions',
-                    'To fix this issue, the administrator needs to:\n\n1️⃣ Go to Supabase Dashboard\n2️⃣ Open SQL Editor\n3️⃣ Run this SQL command:\n\nCREATE TABLE IF NOT EXISTS peer_listeners (\n  id SERIAL PRIMARY KEY,\n  name TEXT NOT NULL,\n  email TEXT UNIQUE NOT NULL,\n  username TEXT UNIQUE NOT NULL,\n  student_id TEXT NOT NULL,\n  phone TEXT,\n  course TEXT,\n  year TEXT,\n  status TEXT DEFAULT \'pending\',\n  created_at TIMESTAMP DEFAULT NOW(),\n  updated_at TIMESTAMP DEFAULT NOW()\n);',
+                    'To fix this issue, the administrator needs to:\n\n1️⃣ Go to Supabase Dashboard\n2️⃣ Open SQL Editor\n3️⃣ Run this SQL command:\n\nCREATE TABLE IF NOT EXISTS user_requests (\n  id SERIAL PRIMARY KEY,\n  name TEXT NOT NULL,\n  email TEXT UNIQUE NOT NULL,\n  username TEXT UNIQUE NOT NULL,\n  registration TEXT NOT NULL,\n  role TEXT NOT NULL,\n  phone TEXT,\n  course TEXT,\n  year TEXT,\n  dob TEXT,\n  password TEXT NOT NULL,\n  status TEXT DEFAULT \'approved\',\n  created_at TIMESTAMP DEFAULT NOW()\n);',
                     [{ text: 'Got it' }]
                   );
                 }
@@ -123,9 +123,9 @@ export default function PeerListenerRegister() {
         }
       }
 
-      // Step 1: Insert into user_request table with auto-approved status
-      const { error: requestInsertError } = await supabase
-        .from('user_request')
+      // Insert into user_requests table with auto-approved status
+      const { data, error } = await supabase
+        .from('user_requests')
         .insert([
           {
             name: formData.name.trim(),
@@ -140,29 +140,6 @@ export default function PeerListenerRegister() {
             status: 'approved',
             created_at: new Date().toISOString()
           }
-        ]);
-
-      if (requestInsertError) {
-        Alert.alert('Error', requestInsertError.message);
-        return;
-      }
-
-      // Step 2: Automatically add to peer_listeners table
-      const { data, error } = await supabase
-        .from('peer_listeners')
-        .insert([
-          {
-            name: formData.name.trim(),
-            email: formData.email.trim().toLowerCase(),
-            username: formData.username.trim(),
-            password: formData.password, // Add password field
-            registration: formData.studentId.trim(), // Use registration field consistently
-            phone: formData.phone.trim(),
-            course: formData.course.trim(),
-            year: formData.year.trim(),
-            status: 'approved', // Auto-approved
-            created_at: new Date().toISOString()
-          }
         ])
         .select();
 
@@ -173,7 +150,7 @@ export default function PeerListenerRegister() {
         if (error.code === '42P01') {
           Alert.alert(
             '🔧 Database Setup Required',
-            'The peer listener system is not configured yet. Please contact your administrator to set up the database tables.',
+            'The registration system is not configured yet. Please contact your administrator to set up the database tables.',
             [
               {
                 text: '📋 Quick Fix',
@@ -198,7 +175,7 @@ export default function PeerListenerRegister() {
                 onPress: () => {
                   Alert.alert(
                     '⚡ Quick Permission Fix',
-                    'Administrator: Run this SQL command in Supabase:\n\nALTER TABLE peer_listeners DISABLE ROW LEVEL SECURITY;\n\nOr create proper RLS policies for public registration.',
+                    'Administrator: Run this SQL command in Supabase:\n\nALTER TABLE user_requests DISABLE ROW LEVEL SECURITY;\n\nOr create proper RLS policies for public registration.',
                     [{ text: 'Got it' }]
                   );
                 }
