@@ -129,7 +129,7 @@ export default function FrontPage() {
               fontWeight: 'bold',
               fontFamily: 'Tinos'
             }}>
-              Register
+              Sign up
             </Text>
           </TouchableOpacity>
         </View>
@@ -299,7 +299,7 @@ export default function FrontPage() {
 
                       try {
                         const selectedType = userTypes.find(type => type.key === selectedUserType);
-                        
+
                         // Handle admin login (hardcoded credentials)
                         if (selectedUserType === 'admin') {
                           if (loginInput.trim() === '241302262' && password.trim() === 'Calmspaces@741') {
@@ -324,17 +324,46 @@ export default function FrontPage() {
 
                         // Handle database-based authentication for other user types
                         if (selectedType && selectedType.table) {
-                          const { data: userData, error: userError } = await supabase
+                          console.log(`Attempting login for ${selectedUserType} with input: ${loginInput.trim()}`);
+                          
+                          // First, let's check if the user exists at all (for debugging)
+                          const { data: existingUser, error: existError } = await supabase
+                            .from(selectedType.table)
+                            .select('registration, email')
+                            .or(`registration.eq.${loginInput.trim()},email.eq.${loginInput.trim()}`)
+                            .single();
+
+                          if (existingUser) {
+                            console.log('User found:', existingUser);
+                          } else {
+                            console.log('User not found, error:', existError);
+                          }
+
+                          // Try to find user by registration number first
+                          let { data: userData, error: userError } = await supabase
                             .from(selectedType.table)
                             .select('*')
-                            .or(`registration.eq.${loginInput.trim()},email.eq.${loginInput.trim()}`)
+                            .eq('registration', loginInput.trim())
                             .eq('password', password.trim())
                             .single();
+
+                          // If not found by registration, try by email
+                          if (!userData && userError) {
+                            const { data: emailData, error: emailError } = await supabase
+                              .from(selectedType.table)
+                              .select('*')
+                              .eq('email', loginInput.trim())
+                              .eq('password', password.trim())
+                              .single();
+                            
+                            userData = emailData;
+                            userError = emailError;
+                          }
 
                           if (userData && !userError) {
                             // Store user data based on type
                             await AsyncStorage.setItem('userType', selectedUserType);
-                            
+
                             if (selectedUserType === 'student') {
                               await AsyncStorage.setItem('currentStudentData', JSON.stringify(userData));
                               await AsyncStorage.setItem('currentStudentReg', userData.registration);
@@ -345,13 +374,13 @@ export default function FrontPage() {
                               await AsyncStorage.setItem('currentPeerData', JSON.stringify(userData));
                               await AsyncStorage.setItem('currentPeerReg', userData.registration);
                             }
-                            
+
                             // Clear form and navigate
                             setLoginModalVisible(false);
                             setLoginInput('');
                             setPassword('');
                             setSelectedUserType('student');
-                            
+
                             // Navigate to appropriate route
                             if (selectedUserType === 'student') {
                               router.push(`/student/student-home?registration=${userData.registration}`);
@@ -360,9 +389,15 @@ export default function FrontPage() {
                             } else if (selectedUserType === 'peer_listener') {
                               router.push('/peer-listener-login');
                             }
-                            
+
                             setIsLoading(false);
                             return;
+                          } else {
+                            // Log the specific error for debugging
+                            console.log('Authentication failed for:', selectedUserType);
+                            console.log('Login input:', loginInput.trim());
+                            console.log('Error:', userError);
+                            console.log('Table:', selectedType?.table);
                           }
                         }
 
