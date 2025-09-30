@@ -15,10 +15,10 @@ export default function FrontPage() {
   const [selectedUserType, setSelectedUserType] = useState('student');
 
   const userTypes = [
-    { key: 'student', label: 'Student', table: 'students', route: '/student/student-home' },
-    { key: 'expert', label: 'Expert', table: 'experts', route: '/expert/expert-home' },
-    { key: 'peer_listener', label: 'Peer Listener', table: 'peer_listeners', route: '/peer-listener-login' },
-    { key: 'admin', label: 'Admin', table: null, route: '/admin/admin-home' }
+    { key: 'student', label: 'Student', dbValue: 'Student', route: '/student/student-home' },
+    { key: 'expert', label: 'Expert', dbValue: 'Expert', route: '/expert/expert-home' },
+    { key: 'peer_listener', label: 'Peer Listener', dbValue: 'Peer Listener', route: '/peer-listener-login' },
+    { key: 'admin', label: 'Admin', dbValue: 'Admin', route: '/admin/admin-home' }
   ];
 
   const [loaded] = useFonts({
@@ -165,48 +165,16 @@ export default function FrontPage() {
                 Login
               </Text>
 
-              {/* User Type Selector */}
+              {/* Login Instructions */}
               <Text style={{
                 fontSize: 16,
                 color: '#666',
-                marginBottom: 8,
-                fontFamily: 'Tinos'
-              }}>
-                Login as
-              </Text>
-              <View style={{
-                flexDirection: 'row',
-                flexWrap: 'wrap',
                 marginBottom: 20,
-                justifyContent: 'space-between'
+                fontFamily: 'Tinos',
+                textAlign: 'center'
               }}>
-                {userTypes.map((type) => (
-                  <TouchableOpacity
-                    key={type.key}
-                    style={{
-                      backgroundColor: selectedUserType === type.key ? '#4F21A2' : 'transparent',
-                      borderWidth: 2,
-                      borderColor: '#4F21A2',
-                      paddingVertical: 8,
-                      paddingHorizontal: 12,
-                      borderRadius: 8,
-                      marginBottom: 8,
-                      minWidth: '47%',
-                      alignItems: 'center'
-                    }}
-                    onPress={() => setSelectedUserType(type.key)}
-                  >
-                    <Text style={{
-                      color: selectedUserType === type.key ? 'white' : '#4F21A2',
-                      fontSize: 14,
-                      fontWeight: 'bold',
-                      fontFamily: 'Tinos'
-                    }}>
-                      {type.label}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
+                Enter your credentials to login. You will be redirected to the appropriate page based on your account type.
+              </Text>
 
               <Text style={{
                 fontSize: 16,
@@ -322,106 +290,66 @@ export default function FrontPage() {
                           }
                         }
 
-                        // Handle database-based authentication for other user types
-                        if (selectedType && selectedType.table) {
-                          console.log(`Attempting login for ${selectedUserType} with input: ${loginInput.trim()}`);
+                        // Handle database-based authentication using user_requests table
+                        console.log(`Attempting login with input: ${loginInput.trim()}`);
 
-                          // First, let's check if the user exists at all by registration (for debugging)
-                          const { data: regCheck, error: regError } = await supabase
-                            .from(selectedType.table)
-                            .select('registration, email')
-                            .eq('registration', loginInput.trim())
-                            .single();
+                        // Check user_requests table for authentication
+                        const { data: userData, error: userError } = await supabase
+                          .from('user_requests')
+                          .select('*')
+                          .or(`registration_number.eq.${loginInput.trim()},email.eq.${loginInput.trim()}`)
+                          .eq('password', password.trim())
+                          .single();
 
-                          // Also check by email
-                          const { data: emailCheck, error: emailError } = await supabase
-                            .from(selectedType.table)
-                            .select('registration, email')
-                            .eq('email', loginInput.trim())
-                            .single();
+                        if (userData && !userError) {
+                          console.log('User found:', userData);
+                          
+                          // User authentication successful - no need to check selected type since we removed the selector
 
-                          console.log('Registration check:', regCheck, regError);
-                          console.log('Email check:', emailCheck, emailError);
+                          // Store user data based on actual user_type from database
+                          const actualUserType = userData.user_type.toLowerCase().replace(' ', '_');
+                          await AsyncStorage.setItem('userType', actualUserType);
+                          await AsyncStorage.setItem('currentUserData', JSON.stringify(userData));
+                          await AsyncStorage.setItem('currentUserReg', userData.registration_number);
 
-                          // Step 1: Check if user exists by registration (without password check)
-                          let userExists = regCheck || null;
-                          let loginField = 'registration';
-
-                          // Step 2: If not found by registration, check by email
-                          if (!userExists && emailCheck) {
-                            userExists = emailCheck;
-                            loginField = 'email';
+                          // Store user-specific data for backward compatibility
+                          if (userData.user_type === 'Student') {
+                            await AsyncStorage.setItem('currentStudentData', JSON.stringify(userData));
+                            await AsyncStorage.setItem('currentStudentReg', userData.registration_number);
+                          } else if (userData.user_type === 'Expert') {
+                            await AsyncStorage.setItem('currentExpertData', JSON.stringify(userData));
+                            await AsyncStorage.setItem('currentExpertReg', userData.registration_number);
+                          } else if (userData.user_type === 'Peer Listener') {
+                            await AsyncStorage.setItem('currentPeerData', JSON.stringify(userData));
+                            await AsyncStorage.setItem('currentPeerReg', userData.registration_number);
                           }
 
-                          let userData = null;
-                          let userError = null;
+                          // Clear form and navigate
+                          setLoginModalVisible(false);
+                          setLoginInput('');
+                          setPassword('');
+                          setSelectedUserType('student');
 
-                          if (userExists) {
-                            // User exists, now check password
-                            const { data: authData, error: authError } = await supabase
-                              .from(selectedType.table)
-                              .select('*')
-                              .eq(loginField, loginInput.trim())
-                              .eq('password', password.trim())
-                              .single();
-
-                            userData = authData;
-                            userError = authError;
-
-                            if (!userData && !authError) {
-                              // User exists but password is wrong
-                              Alert.alert('Login Failed', 'Incorrect password. Please try again.');
-                              setIsLoading(false);
-                              return;
-                            }
-                          } else {
-                            // User doesn't exist
-                            Alert.alert('Login Failed', `No ${selectedType?.label.toLowerCase()} account found with this registration number or email.`);
-                            setIsLoading(false);
-                            return;
+                          // Navigate based on user_type from database
+                          if (userData.user_type === 'Student') {
+                            router.push(`/student/student-home?registration=${userData.registration_number}`);
+                          } else if (userData.user_type === 'Expert') {
+                            router.push(`/expert/expert-home?registration=${userData.registration_number}`);
+                          } else if (userData.user_type === 'Peer Listener') {
+                            router.push('/peer-listener-login');
+                          } else if (userData.user_type === 'Admin') {
+                            router.push('/admin/admin-home');
                           }
 
-                          if (userData && !userError) {
-                            // Store user data based on type
-                            await AsyncStorage.setItem('userType', selectedUserType);
-
-                            if (selectedUserType === 'student') {
-                              await AsyncStorage.setItem('currentStudentData', JSON.stringify(userData));
-                              await AsyncStorage.setItem('currentStudentReg', userData.registration);
-                            } else if (selectedUserType === 'expert') {
-                              await AsyncStorage.setItem('currentExpertData', JSON.stringify(userData));
-                              await AsyncStorage.setItem('currentExpertReg', userData.registration);
-                            } else if (selectedUserType === 'peer_listener') {
-                              await AsyncStorage.setItem('currentPeerData', JSON.stringify(userData));
-                              await AsyncStorage.setItem('currentPeerReg', userData.registration);
-                            }
-
-                            // Clear form and navigate
-                            setLoginModalVisible(false);
-                            setLoginInput('');
-                            setPassword('');
-                            setSelectedUserType('student');
-
-                            // Navigate to appropriate route
-                            if (selectedUserType === 'student') {
-                              router.push(`/student/student-home?registration=${userData.registration}`);
-                            } else if (selectedUserType === 'expert') {
-                              router.push(`/expert/expert-home?registration=${userData.registration}`);
-                            } else if (selectedUserType === 'peer_listener') {
-                              router.push('/peer-listener-login');
-                            }
-
-                            setIsLoading(false);
-                            return;
-                          } else {
-                            // This shouldn't happen with the new logic, but just in case
-                            console.log('Unexpected authentication failure for:', selectedUserType);
-                            console.log('Login input:', loginInput.trim());
-                            console.log('Error:', userError);
-                            console.log('Table:', selectedType?.table);
-                            Alert.alert('Login Failed', 'An unexpected error occurred. Please try again.');
-                            setIsLoading(false);
-                          }
+                          setIsLoading(false);
+                          return;
+                        } else {
+                          // Authentication failed
+                          console.log('Authentication failed');
+                          console.log('Login input:', loginInput.trim());
+                          console.log('Error:', userError);
+                          Alert.alert('Login Failed', 'Invalid credentials. Please check your registration number/email and password.');
+                          setIsLoading(false);
                         }
 
                       } catch (error) {
