@@ -15,10 +15,8 @@ export default function FrontPage() {
 
   useEffect(() => {
     if (loaded) {
-      const timer = setTimeout(() => {
-        router.replace('/select');
-      }, 5000);
-      return () => clearTimeout(timer);
+      // Navigate immediately once fonts are loaded (remove 5s timer)
+      router.replace('/select');
     }
   }, [loaded, router]);
 
