@@ -229,11 +229,11 @@ export default function StudentSetting() {
       await AsyncStorage.removeItem('currentStudentData');
 
       console.log("Logout successful - persistent data preserved");
-      // Navigate back to select screen
-      router.replace('../select');
+      // Navigate back to index screen
+      router.replace('/');
     } catch (error) {
       console.error('Error during logout:', error);
-      router.replace('../select');
+      router.replace('/');
     }
   };
 

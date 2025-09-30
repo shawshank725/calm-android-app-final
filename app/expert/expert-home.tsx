@@ -266,9 +266,10 @@ export default function ExpertHome() {
     try {
       await AsyncStorage.removeItem('currentExpertReg');
       await AsyncStorage.removeItem('currentExpertName');
-      router.replace('../select');
+      router.replace('/');
     } catch (error) {
       console.error('Logout error:', error);
+      router.replace('/');
     }
   };
 

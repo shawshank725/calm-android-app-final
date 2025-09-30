@@ -39,15 +39,10 @@ export default function AdminSetting() {
   const handleLogout = async () => {
     try {
       await AsyncStorage.removeItem('adminUser');
-      Alert.alert('Logged Out', 'You have been logged out.', [
-        {
-          text: 'OK',
-          onPress: () => router.replace('/select'),
-        },
-      ]);
+      router.replace('/');
     } catch (error) {
       console.error('Logout error:', error);
-      Alert.alert('Error', 'An error occurred while logging out.');
+      router.replace('/');
     }
   };
 
