@@ -20,6 +20,17 @@ interface Student {
     course: string;
 }
 
+interface ChatMessage {
+    id: string;
+    sender_id: string;
+    receiver_id: string;
+    sender_name: string;
+    sender_type: 'EXPERT' | 'STUDENT' | 'PEER' | 'ADMIN';
+    message: string;
+    created_at: string;
+    is_read?: boolean;
+}
+
 export default function ConsultationPage() {
     const router = useRouter();
     const params = useLocalSearchParams<{
@@ -32,6 +43,8 @@ export default function ConsultationPage() {
     const [searchText, setSearchText] = useState('');
     const [students, setStudents] = useState<Student[]>([]);
     const [filteredStudents, setFilteredStudents] = useState<Student[]>([]);
+    const [messages, setMessages] = useState<ChatMessage[]>([]);
+    const [activeTab, setActiveTab] = useState<'students' | 'messages'>('messages'); // Default to messages
     const [expertInfo, setExpertInfo] = useState({
         name: '',
         registration: ''
@@ -42,6 +55,44 @@ export default function ConsultationPage() {
         loadExpertInfo();
         loadStudents();
     }, []);
+
+    // Load messages when expert info is available
+    useEffect(() => {
+        if (expertInfo.registration) {
+            loadMessages();
+        }
+    }, [expertInfo.registration]);
+
+    // Set up real-time subscription for new messages
+    useEffect(() => {
+        if (!expertInfo.registration) return;
+
+        const channel = supabase
+            .channel(`expert_messages_${expertInfo.registration}`)
+            .on(
+                'postgres_changes',
+                {
+                    event: 'INSERT',
+                    schema: 'public',
+                    table: 'messages',
+                    filter: `receiver_id=eq.${expertInfo.registration}`,
+                },
+                (payload) => {
+                    console.log('New message received:', payload);
+                    const newMessage = payload.new as ChatMessage;
+                    setMessages(prev => {
+                        const exists = prev.some(msg => msg.id === newMessage.id);
+                        if (exists) return prev;
+                        return [newMessage, ...prev]; // Add to beginning for most recent first
+                    });
+                }
+            )
+            .subscribe();
+
+        return () => {
+            supabase.removeChannel(channel);
+        };
+    }, [expertInfo.registration]);
 
     // Filter students based on search text
     useEffect(() => {
@@ -98,6 +149,30 @@ export default function ConsultationPage() {
         }
     };
 
+    const loadMessages = async () => {
+        try {
+            if (!expertInfo.registration) return;
+
+            // Load messages where expert is the receiver (messages sent to expert)
+            const { data: messagesData, error } = await supabase
+                .from('messages')
+                .select('*')
+                .eq('receiver_id', expertInfo.registration)
+                .order('created_at', { ascending: false }) // Most recent first
+                .limit(1000); // Limit to last 1000 messages
+
+            if (error) {
+                console.error('Error loading messages:', error);
+                setMessages([]);
+            } else if (messagesData) {
+                setMessages(messagesData);
+            }
+        } catch (error) {
+            console.error('Error loading messages:', error);
+            setMessages([]);
+        }
+    };
+
     const handleSearch = () => {
         if (searchText.trim() === '') {
             Alert.alert('Search', 'Please enter a roll number or name to search');
@@ -148,6 +223,57 @@ export default function ConsultationPage() {
         </TouchableOpacity>
     );
 
+    const formatTimestamp = (timestamp: string) => {
+        const messageDate = new Date(timestamp);
+        const now = new Date();
+        const diffInHours = (now.getTime() - messageDate.getTime()) / (1000 * 60 * 60);
+
+        if (diffInHours < 1) {
+            const diffInMinutes = Math.floor(diffInHours * 60);
+            return `${diffInMinutes}m ago`;
+        } else if (diffInHours < 24) {
+            return `${Math.floor(diffInHours)}h ago`;
+        } else {
+            return messageDate.toLocaleDateString();
+        }
+    };
+
+    const renderMessageItem = ({ item }: { item: ChatMessage }) => (
+        <TouchableOpacity
+            style={styles.messageListItem}
+            onPress={() => {
+                // Navigate to chat with the student who sent the message
+                router.push({
+                    pathname: './expert-chat',
+                    params: {
+                        studentReg: item.sender_id,
+                        studentName: item.sender_name,
+                        expertReg: expertInfo.registration,
+                        expertName: expertInfo.name
+                    }
+                });
+            }}
+        >
+            <View style={styles.messageListHeader}>
+                <View style={styles.messageInfo}>
+                    <Text style={styles.messageSender}>
+                        👨‍🎓 {item.sender_name}
+                    </Text>
+                    <Text style={styles.messageTime}>
+                        {formatTimestamp(item.created_at)}
+                    </Text>
+                </View>
+                <Text style={styles.messageType}>
+                    {item.sender_type === 'STUDENT' ? '💬' : '👥'}
+                </Text>
+            </View>
+            <Text style={styles.messagePreview} numberOfLines={2}>
+                {item.message}
+            </Text>
+            <Text style={styles.messageId}>ID: {item.sender_id}</Text>
+        </TouchableOpacity>
+    );
+
     return (
         <View style={styles.container}>
             {/* Header */}
@@ -158,77 +284,126 @@ export default function ConsultationPage() {
                 >
                     <Text style={styles.backButtonText}>← Back</Text>
                 </TouchableOpacity>
-                <Text style={styles.headerTitle}>🔍 Find Students</Text>
+                <Text style={styles.headerTitle}>� Consultation</Text>
                 <Text style={styles.headerSubtitle}>
-                    Search by roll number or name
+                    {activeTab === 'messages' ? 'Recent messages from students' : 'Search by roll number or name'}
                 </Text>
             </View>
 
-            {/* Search Section */}
-            <View style={styles.searchContainer}>
-                <View style={styles.searchBox}>
-                    <Text style={styles.searchIcon}>🔍</Text>
-                    <TextInput
-                        style={styles.searchInput}
-                        placeholder="Search by roll number or name..."
-                        placeholderTextColor="#999"
-                        value={searchText}
-                        onChangeText={setSearchText}
-                    />
-                    <TouchableOpacity
-                        style={styles.searchButton}
-                        onPress={handleSearch}
-                    >
-                        <Text style={styles.searchButtonText}>Search</Text>
-                    </TouchableOpacity>
-                </View>
-                {searchText.length > 0 && (
-                    <TouchableOpacity
-                        onPress={() => setSearchText('')}
-                        style={styles.clearSearchButton}
-                    >
-                        <Text style={styles.clearSearchText}>Clear Search</Text>
-                    </TouchableOpacity>
-                )}
+            {/* Tab Navigation */}
+            <View style={styles.tabContainer}>
+                <TouchableOpacity
+                    style={[styles.tabButton, activeTab === 'messages' && styles.activeTab]}
+                    onPress={() => setActiveTab('messages')}
+                >
+                    <Text style={[styles.tabText, activeTab === 'messages' && styles.activeTabText]}>
+                        📧 Messages ({messages.length})
+                    </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                    style={[styles.tabButton, activeTab === 'students' && styles.activeTab]}
+                    onPress={() => setActiveTab('students')}
+                >
+                    <Text style={[styles.tabText, activeTab === 'students' && styles.activeTabText]}>
+                        👨‍🎓 Students ({students.length})
+                    </Text>
+                </TouchableOpacity>
             </View>
 
-            {/* Students List */}
-            <View style={styles.messagesArea}>
-                {filteredStudents.length === 0 ? (
-                    <View style={styles.emptyContainer}>
-                        {searchText.length > 0 ? (
-                            <>
-                                <Text style={styles.emptyIcon}>🔍</Text>
-                                <Text style={styles.emptyTitle}>No Students Found</Text>
-                                <Text style={styles.emptyText}>
-                                    No students found matching "{searchText}"
-                                </Text>
-                            </>
-                        ) : (
-                            <>
-                                <Text style={styles.emptyIcon}>👨‍🎓</Text>
-                                <Text style={styles.emptyTitle}>Find Students</Text>
-                                <Text style={styles.emptyText}>
-                                    Search for students by their roll number or name to start a conversation.
-                                </Text>
-                            </>
-                        )}
+            {/* Search Section - Only show for students tab */}
+            {activeTab === 'students' && (
+                <View style={styles.searchContainer}>
+                    <View style={styles.searchBox}>
+                        <Text style={styles.searchIcon}>🔍</Text>
+                        <TextInput
+                            style={styles.searchInput}
+                            placeholder="Search by roll number or name..."
+                            placeholderTextColor="#999"
+                            value={searchText}
+                            onChangeText={setSearchText}
+                        />
+                        <TouchableOpacity
+                            style={styles.searchButton}
+                            onPress={handleSearch}
+                        >
+                            <Text style={styles.searchButtonText}>Search</Text>
+                        </TouchableOpacity>
                     </View>
+                    {searchText.length > 0 && (
+                        <TouchableOpacity
+                            onPress={() => setSearchText('')}
+                            style={styles.clearSearchButton}
+                        >
+                            <Text style={styles.clearSearchText}>Clear Search</Text>
+                        </TouchableOpacity>
+                    )}
+                </View>
+            )}
+
+            {/* Main Content Area */}
+            <View style={styles.messagesArea}>
+                {activeTab === 'messages' ? (
+                    // Messages Tab
+                    messages.length === 0 ? (
+                        <View style={styles.emptyContainer}>
+                            <Text style={styles.emptyIcon}>📧</Text>
+                            <Text style={styles.emptyTitle}>No Messages</Text>
+                            <Text style={styles.emptyText}>
+                                No messages received from students yet. Students can send you messages from the student-calm page.
+                            </Text>
+                        </View>
+                    ) : (
+                        <FlatList
+                            data={messages}
+                            renderItem={renderMessageItem}
+                            keyExtractor={(item) => item.id}
+                            showsVerticalScrollIndicator={false}
+                            style={styles.messagesList}
+                        />
+                    )
                 ) : (
-                    <FlatList
-                        data={filteredStudents}
-                        renderItem={renderStudentItem}
-                        keyExtractor={(item) => item.id}
-                        showsVerticalScrollIndicator={false}
-                        style={styles.messagesList}
-                    />
+                    // Students Tab
+                    filteredStudents.length === 0 ? (
+                        <View style={styles.emptyContainer}>
+                            {searchText.length > 0 ? (
+                                <>
+                                    <Text style={styles.emptyIcon}>🔍</Text>
+                                    <Text style={styles.emptyTitle}>No Students Found</Text>
+                                    <Text style={styles.emptyText}>
+                                        No students found matching "{searchText}"
+                                    </Text>
+                                </>
+                            ) : (
+                                <>
+                                    <Text style={styles.emptyIcon}>👨‍🎓</Text>
+                                    <Text style={styles.emptyTitle}>Find Students</Text>
+                                    <Text style={styles.emptyText}>
+                                        Search for students by their roll number or name to start a conversation.
+                                    </Text>
+                                </>
+                            )}
+                        </View>
+                    ) : (
+                        <FlatList
+                            data={filteredStudents}
+                            renderItem={renderStudentItem}
+                            keyExtractor={(item) => item.id}
+                            showsVerticalScrollIndicator={false}
+                            style={styles.messagesList}
+                        />
+                    )
                 )}
             </View>
 
             {/* Footer */}
             <View style={styles.footer}>
                 <Text style={styles.footerText}>
-                    {searchText ? `${filteredStudents.length} students found` : `${students.length} total students`}
+                    {activeTab === 'messages' 
+                        ? `${messages.length} message${messages.length !== 1 ? 's' : ''} received`
+                        : searchText 
+                            ? `${filteredStudents.length} students found` 
+                            : `${students.length} total students`
+                    }
                 </Text>
             </View>
         </View>
@@ -470,5 +645,73 @@ const styles = StyleSheet.create({
         borderRadius: 20,
         textAlign: 'center',
         overflow: 'hidden',
+    },
+    // Tab Styles
+    tabContainer: {
+        flexDirection: 'row',
+        backgroundColor: '#ffffff',
+        borderBottomWidth: 1,
+        borderBottomColor: '#e0e0e0',
+    },
+    tabButton: {
+        flex: 1,
+        paddingVertical: 15,
+        paddingHorizontal: 10,
+        borderBottomWidth: 2,
+        borderBottomColor: 'transparent',
+    },
+    activeTab: {
+        borderBottomColor: '#7b1fa2',
+    },
+    tabText: {
+        fontSize: 14,
+        fontWeight: 'bold',
+        textAlign: 'center',
+        color: '#999',
+    },
+    activeTabText: {
+        color: '#7b1fa2',
+    },
+    // Message List Item Styles
+    messageListItem: {
+        backgroundColor: '#ffffff',
+        borderBottomWidth: 1,
+        borderBottomColor: '#f0f0f0',
+        paddingHorizontal: 20,
+        paddingVertical: 15,
+        marginVertical: 2,
+    },
+    messageListHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: 8,
+    },
+    messageInfo: {
+        flex: 1,
+    },
+    messageSender: {
+        fontSize: 16,
+        fontWeight: 'bold',
+        color: '#333',
+        marginBottom: 2,
+    },
+    messageTime: {
+        fontSize: 12,
+        color: '#999',
+    },
+    messageType: {
+        fontSize: 20,
+    },
+    messagePreview: {
+        fontSize: 14,
+        color: '#666',
+        lineHeight: 20,
+        marginBottom: 8,
+    },
+    messageId: {
+        fontSize: 12,
+        color: '#999',
+        fontStyle: 'italic',
     },
 });
