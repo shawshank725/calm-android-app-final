@@ -1,5 +1,5 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
     Alert,
     FlatList,
@@ -39,9 +39,17 @@ export default function ExpertChatPage() {
     const [messages, setMessages] = useState<ChatMessage[]>([]);
     const [newMessage, setNewMessage] = useState('');
     const [loading, setLoading] = useState(false);
+    const flatListRef = useRef<FlatList>(null);
 
     useEffect(() => {
         loadMessages();
+        
+        // Set up periodic refresh to ensure messages are always up to date
+        const refreshInterval = setInterval(() => {
+            loadMessages();
+        }, 30000); // Refresh every 30 seconds
+
+        return () => clearInterval(refreshInterval);
     }, []);
 
     // Set up real-time subscription for chat messages
@@ -60,8 +68,19 @@ export default function ExpertChatPage() {
                 },
                 (payload) => {
                     console.log('New message received:', payload);
-                    // Add new message to local state
-                    setMessages(prev => [...prev, payload.new as ChatMessage]);
+                    const newMessage = payload.new as ChatMessage;
+                    
+                    // Prevent duplicate messages
+                    setMessages(prev => {
+                        const exists = prev.some(msg => msg.id === newMessage.id);
+                        if (exists) return prev;
+                        return [...prev, newMessage];
+                    });
+
+                    // Auto-scroll to bottom when new message arrives
+                    setTimeout(() => {
+                        flatListRef.current?.scrollToEnd({ animated: true });
+                    }, 100);
                 }
             )
             .subscribe();
@@ -101,7 +120,17 @@ export default function ExpertChatPage() {
             }
 
             if (messages) {
-                setMessages(messages);
+                setMessages(prev => {
+                    // Only update if messages have changed
+                    if (JSON.stringify(prev) !== JSON.stringify(messages)) {
+                        // Auto-scroll to bottom after loading new messages
+                        setTimeout(() => {
+                            flatListRef.current?.scrollToEnd({ animated: false });
+                        }, 100);
+                        return messages;
+                    }
+                    return prev;
+                });
             } else {
                 setMessages([]);
             }
@@ -186,6 +215,10 @@ export default function ExpertChatPage() {
             // Add to local state for immediate UI update
             if (data) {
                 setMessages(prev => [...prev, data]);
+                // Auto-scroll to bottom when expert sends message
+                setTimeout(() => {
+                    flatListRef.current?.scrollToEnd({ animated: true });
+                }, 100);
             }
 
             setNewMessage('');
@@ -227,7 +260,7 @@ export default function ExpertChatPage() {
     );
 
     return (
-        <KeyboardAvoidingView 
+        <KeyboardAvoidingView
             style={styles.container}
             behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
             keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
@@ -284,6 +317,7 @@ export default function ExpertChatPage() {
                     </View>
                 ) : (
                     <FlatList
+                        ref={flatListRef}
                         data={messages}
                         renderItem={renderMessageItem}
                         keyExtractor={(item) => item.id}
