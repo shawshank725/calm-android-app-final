@@ -43,7 +43,7 @@ export default function ExpertChatPage() {
 
     useEffect(() => {
         loadMessages();
-        
+
         // Set up periodic refresh to ensure messages are always up to date
         const refreshInterval = setInterval(() => {
             loadMessages();
@@ -69,7 +69,7 @@ export default function ExpertChatPage() {
                 (payload) => {
                     console.log('New message received:', payload);
                     const newMessage = payload.new as ChatMessage;
-                    
+
                     // Prevent duplicate messages
                     setMessages(prev => {
                         const exists = prev.some(msg => msg.id === newMessage.id);
