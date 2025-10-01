@@ -31,6 +31,16 @@ interface ChatMessage {
     is_read?: boolean;
 }
 
+interface GroupedConversation {
+    sender_id: string;
+    sender_name: string;
+    sender_type: string;
+    latest_message: string;
+    latest_timestamp: string;
+    message_count: number;
+    is_read?: boolean;
+}
+
 export default function ConsultationPage() {
     const router = useRouter();
     const params = useLocalSearchParams<{
@@ -44,6 +54,7 @@ export default function ConsultationPage() {
     const [students, setStudents] = useState<Student[]>([]);
     const [filteredStudents, setFilteredStudents] = useState<Student[]>([]);
     const [messages, setMessages] = useState<ChatMessage[]>([]);
+    const [groupedConversations, setGroupedConversations] = useState<GroupedConversation[]>([]);
     const [activeTab, setActiveTab] = useState<'students' | 'messages'>('messages'); // Default to messages
     const [expertInfo, setExpertInfo] = useState({
         name: '',
@@ -83,7 +94,13 @@ export default function ConsultationPage() {
                     setMessages(prev => {
                         const exists = prev.some(msg => msg.id === newMessage.id);
                         if (exists) return prev;
-                        return [newMessage, ...prev]; // Add to beginning for most recent first
+                        const updatedMessages = [newMessage, ...prev];
+                        
+                        // Update grouped conversations
+                        const grouped = groupMessagesBySender(updatedMessages);
+                        setGroupedConversations(grouped);
+                        
+                        return updatedMessages;
                     });
                 }
             )
@@ -149,6 +166,41 @@ export default function ConsultationPage() {
         }
     };
 
+    const groupMessagesBySender = (messages: ChatMessage[]): GroupedConversation[] => {
+        const grouped = messages.reduce((acc, message) => {
+            const senderId = message.sender_id;
+            
+            if (!acc[senderId]) {
+                acc[senderId] = {
+                    sender_id: senderId,
+                    sender_name: message.sender_name,
+                    sender_type: message.sender_type,
+                    latest_message: message.message,
+                    latest_timestamp: message.created_at,
+                    message_count: 1,
+                    is_read: message.is_read
+                };
+            } else {
+                // Check if this message is more recent
+                const currentTimestamp = new Date(message.created_at);
+                const latestTimestamp = new Date(acc[senderId].latest_timestamp);
+                
+                if (currentTimestamp > latestTimestamp) {
+                    acc[senderId].latest_message = message.message;
+                    acc[senderId].latest_timestamp = message.created_at;
+                }
+                acc[senderId].message_count += 1;
+            }
+            
+            return acc;
+        }, {} as Record<string, GroupedConversation>);
+
+        // Convert to array and sort by latest timestamp
+        return Object.values(grouped).sort((a, b) => 
+            new Date(b.latest_timestamp).getTime() - new Date(a.latest_timestamp).getTime()
+        );
+    };
+
     const loadMessages = async () => {
         try {
             if (!expertInfo.registration) return;
@@ -164,12 +216,17 @@ export default function ConsultationPage() {
             if (error) {
                 console.error('Error loading messages:', error);
                 setMessages([]);
+                setGroupedConversations([]);
             } else if (messagesData) {
                 setMessages(messagesData);
+                // Group messages by sender
+                const grouped = groupMessagesBySender(messagesData);
+                setGroupedConversations(grouped);
             }
         } catch (error) {
             console.error('Error loading messages:', error);
             setMessages([]);
+            setGroupedConversations([]);
         }
     };
 
@@ -238,11 +295,11 @@ export default function ConsultationPage() {
         }
     };
 
-    const renderMessageItem = ({ item }: { item: ChatMessage }) => (
+    const renderConversationItem = ({ item }: { item: GroupedConversation }) => (
         <TouchableOpacity
             style={styles.messageListItem}
             onPress={() => {
-                // Navigate to chat with the student who sent the message
+                // Navigate to chat with the student
                 router.push({
                     pathname: './expert-chat',
                     params: {
@@ -260,15 +317,20 @@ export default function ConsultationPage() {
                         👨‍🎓 {item.sender_name}
                     </Text>
                     <Text style={styles.messageTime}>
-                        {formatTimestamp(item.created_at)}
+                        {formatTimestamp(item.latest_timestamp)}
                     </Text>
                 </View>
-                <Text style={styles.messageType}>
-                    {item.sender_type === 'STUDENT' ? '💬' : '👥'}
-                </Text>
+                <View style={styles.messageActions}>
+                    <Text style={styles.messageCount}>
+                        {item.message_count > 1 ? `${item.message_count} msgs` : '1 msg'}
+                    </Text>
+                    <Text style={styles.messageType}>
+                        {item.sender_type === 'STUDENT' ? '💬' : '👥'}
+                    </Text>
+                </View>
             </View>
             <Text style={styles.messagePreview} numberOfLines={2}>
-                {item.message}
+                {item.latest_message}
             </Text>
             <Text style={styles.messageId}>ID: {item.sender_id}</Text>
         </TouchableOpacity>
@@ -297,7 +359,7 @@ export default function ConsultationPage() {
                     onPress={() => setActiveTab('messages')}
                 >
                     <Text style={[styles.tabText, activeTab === 'messages' && styles.activeTabText]}>
-                        📧 Messages ({messages.length})
+                        � Conversations ({groupedConversations.length})
                     </Text>
                 </TouchableOpacity>
                 <TouchableOpacity
@@ -344,7 +406,7 @@ export default function ConsultationPage() {
             <View style={styles.messagesArea}>
                 {activeTab === 'messages' ? (
                     // Messages Tab
-                    messages.length === 0 ? (
+                    groupedConversations.length === 0 ? (
                         <View style={styles.emptyContainer}>
                             <Text style={styles.emptyIcon}>📧</Text>
                             <Text style={styles.emptyTitle}>No Messages</Text>
@@ -354,9 +416,9 @@ export default function ConsultationPage() {
                         </View>
                     ) : (
                         <FlatList
-                            data={messages}
-                            renderItem={renderMessageItem}
-                            keyExtractor={(item) => item.id}
+                            data={groupedConversations}
+                            renderItem={renderConversationItem}
+                            keyExtractor={(item) => item.sender_id}
                             showsVerticalScrollIndicator={false}
                             style={styles.messagesList}
                         />
@@ -398,10 +460,10 @@ export default function ConsultationPage() {
             {/* Footer */}
             <View style={styles.footer}>
                 <Text style={styles.footerText}>
-                    {activeTab === 'messages' 
+                    {activeTab === 'messages'
                         ? `${messages.length} message${messages.length !== 1 ? 's' : ''} received`
-                        : searchText 
-                            ? `${filteredStudents.length} students found` 
+                        : searchText
+                            ? `${filteredStudents.length} students found`
                             : `${students.length} total students`
                     }
                 </Text>
@@ -713,5 +775,14 @@ const styles = StyleSheet.create({
         fontSize: 12,
         color: '#999',
         fontStyle: 'italic',
+    },
+    messageActions: {
+        alignItems: 'flex-end',
+    },
+    messageCount: {
+        fontSize: 12,
+        color: '#7b1fa2',
+        fontWeight: 'bold',
+        marginBottom: 4,
     },
 });
