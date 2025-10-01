@@ -3,6 +3,8 @@ import { useEffect, useState } from 'react';
 import {
     Alert,
     FlatList,
+    KeyboardAvoidingView,
+    Platform,
     StyleSheet,
     Text,
     TextInput,
@@ -225,7 +227,11 @@ export default function ExpertChatPage() {
     );
 
     return (
-        <View style={styles.container}>
+        <KeyboardAvoidingView 
+            style={styles.container}
+            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+            keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
+        >
             {/* Header */}
             <View style={styles.header}>
                 <TouchableOpacity
@@ -313,7 +319,7 @@ export default function ExpertChatPage() {
                     {messages.length} message{messages.length !== 1 ? 's' : ''} • Chat with {params.studentName}
                 </Text>
             </View>
-        </View>
+        </KeyboardAvoidingView>
     );
 }
 
