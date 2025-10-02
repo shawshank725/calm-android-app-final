@@ -1,14 +1,13 @@
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import {
-    Alert,
     Animated,
     Image,
     Modal,
     Pressable,
-    SafeAreaView,
     ScrollView,
     StyleSheet,
     Text,
@@ -46,22 +45,15 @@ export default function ExpertSetting() {
   const fadeAnim = useRef(new Animated.Value(0)).current;
 
   // Expert data states
-  const [expertData, setExpertData] = useState<any>(null);
   const [expertProfile, setExpertProfile] = useState({
-    specialization: '',
-    experience: '',
-    qualifications: '',
     bio: '',
     email: '',
-    phone: '',
-    rating: '0.0'
   });
 
   useEffect(() => {
     const loadExpertData = async () => {
       try {
         let regNo = params.registration;
-        let expertName = '';
 
         if (!regNo) {
           const storedReg = await AsyncStorage.getItem('currentExpertReg');
@@ -75,7 +67,6 @@ export default function ExpertSetting() {
           const storedName = await AsyncStorage.getItem('currentExpertName');
           if (storedName) {
             setExpertName(storedName);
-            expertName = storedName;
           }
 
           // Load expert data from user_requests table
@@ -93,25 +84,18 @@ export default function ExpertSetting() {
               // If not found in user_requests, keep using stored name
             } else if (expertUserData) {
               console.log('Successfully loaded expert data from user_requests table:', expertUserData);
-              setExpertData(expertUserData);
 
               // Update expert name if found in database
               if (expertUserData.user_name) {
                 setExpertName(expertUserData.user_name);
-                expertName = expertUserData.user_name;
                 // Update stored name for future use
                 await AsyncStorage.setItem('currentExpertName', expertUserData.user_name);
               }
 
               // Set expert profile data
               setExpertProfile({
-                specialization: expertUserData.specialization || expertUserData.course || 'Mental Health Expert',
-                experience: expertUserData.experience || '5+ years',
-                qualifications: expertUserData.qualifications || 'Licensed Professional',
                 bio: expertUserData.bio || `Expert specializing in ${expertUserData.specialization || 'Mental Health'}`,
-                email: expertUserData.email || '',
-                phone: expertUserData.phone || '',
-                rating: expertUserData.rating ? expertUserData.rating.toString() : '4.8'
+                email: expertUserData.email || ''
               });
             }
           } catch (dbError) {
@@ -120,11 +104,12 @@ export default function ExpertSetting() {
           }
 
           // Load settings-specific data (profile pic)
-          try {
-            const picIdx = await AsyncStorage.getItem(`expertProfilePic_${regNo}`);
-            if (picIdx !== null) setSelectedProfilePic(parseInt(picIdx, 10));
-          } catch (e) {
-            console.warn('Expert profile pic load warning:', e);
+          const [picIdx] = await Promise.all([
+            AsyncStorage.getItem(`expertProfilePic_${regNo}`)
+          ]);
+
+          if (picIdx !== null) {
+            setSelectedProfilePic(parseInt(picIdx, 10));
           }
         }
       } catch (error) {
@@ -134,6 +119,42 @@ export default function ExpertSetting() {
 
     loadExpertData();
   }, [params.registration]);
+
+  // Refresh expert data function
+  const refreshExpertData = async () => {
+    setLoading(true);
+    try {
+      let regNo = params.registration;
+      if (!regNo) {
+        const storedReg = await AsyncStorage.getItem('currentExpertReg');
+        if (storedReg) regNo = storedReg;
+      }
+
+      if (regNo) {
+        // Fetch fresh expert data from user_requests table
+        const { data, error } = await supabase
+          .from('user_requests')
+          .select('*')
+          .eq('registration_number', regNo)
+          .eq('user_type', 'Expert')
+          .single();
+
+        if (error) {
+          console.error('Error refreshing expert data:', error);
+        } else if (data) {
+          setExpertName(data.user_name || data.name || '');
+          setExpertProfile({
+            bio: data.bio || `Expert specializing in ${data.specialization || 'Mental Health'}`,
+            email: data.email || ''
+          });
+        }
+      }
+    } catch (error) {
+      console.error('Error refreshing expert data:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   // Profile pic fade-in animation
   useEffect(() => {
@@ -170,163 +191,94 @@ export default function ExpertSetting() {
   };
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: Colors.background }}>
-      <ScrollView style={styles.scrollView} contentContainerStyle={{ paddingBottom: 60 }} showsVerticalScrollIndicator={false}>
-        <View style={styles.exSettingContainer}>
-          {/* Profile picture */}
-          <Animated.View style={[styles.exProfilePicContainer, { opacity: fadeAnim }]}>
+    <LinearGradient
+      colors={[Colors.background, Colors.backgroundLight, Colors.accentLight]}
+      style={styles.container}
+    >
+      {/* Header */}
+      <View style={styles.header}>
+        <TouchableOpacity
+          style={styles.backButton}
+          onPress={() => router.back()}
+        >
+          <Text style={styles.backButtonText}>Back</Text>
+        </TouchableOpacity>
+        <Text style={styles.headerTitle}>Settings</Text>
+        <TouchableOpacity
+          style={styles.refreshButton}
+          onPress={refreshExpertData}
+          disabled={loading}
+        >
+          <Ionicons name="refresh" size={20} color={Colors.primary} />
+        </TouchableOpacity>
+      </View>
+
+      {/* Profile Section with ScrollView */}
+      <ScrollView
+        style={styles.scrollView}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+      >
+        <View style={styles.settingContainer}>
+          <Animated.View style={[styles.profilePicContainer, { opacity: fadeAnim }]}>
             <View style={{
               shadowColor: Colors.shadow,
               shadowOffset: { width: 0, height: 0 },
               shadowOpacity: 0.3,
               shadowRadius: 10,
             }}>
-              <Image source={profilePics[selectedProfilePic]} style={styles.exProfilePic} />
+              <Image source={profilePics[selectedProfilePic]} style={styles.profilePic} />
             </View>
           </Animated.View>
-          <Text style={styles.exWelcomeText}>Welcome, Dr. {expertName || 'Expert'}!</Text>
+          <Text style={styles.welcomeText}>Welcome, Dr. {expertName}!</Text>
 
-          <TouchableOpacity style={styles.exEditPhotoBtn} onPress={() => setChoosePicModal(true)}>
-            <Text style={styles.exEditPhotoText}>Edit your profile photo</Text>
+          <TouchableOpacity style={styles.editPhotoBtn} onPress={() => setChoosePicModal(true)}>
+            <Text style={styles.editPhotoText}>Edit your profile photo</Text>
           </TouchableOpacity>
 
           {/* Expert Information */}
-          <View style={styles.exInfoBox}>
-            <View style={styles.exSectionTitleRow}>
-              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                <Ionicons name="person-circle" size={24} color={Colors.primary} />
-                <Text style={styles.exSectionTitle}>Expert Information</Text>
-              </View>
-              <TouchableOpacity
-                style={styles.refreshButton}
-                onPress={async () => {
-                  // Refresh expert data from user_requests table
-                  if (expertRegNo) {
-                    setLoading(true);
-                    try {
-                      const { data: expertUserData, error } = await supabase
-                        .from('user_requests')
-                        .select('*')
-                        .eq('registration_number', expertRegNo)
-                        .eq('user_type', 'Expert')
-                        .single();
-
-                      if (!error && expertUserData) {
-                        setExpertData(expertUserData);
-                        setExpertName(expertUserData.user_name);
-                        setExpertProfile({
-                          specialization: expertUserData.specialization || expertUserData.course || 'Mental Health Expert',
-                          experience: expertUserData.experience || '5+ years',
-                          qualifications: expertUserData.qualifications || 'Licensed Professional',
-                          bio: expertUserData.bio || `Expert specializing in ${expertUserData.specialization || 'Mental Health'}`,
-                          email: expertUserData.email || '',
-                          phone: expertUserData.phone || '',
-                          rating: expertUserData.rating ? expertUserData.rating.toString() : '4.8'
-                        });
-                        Alert.alert('Success', 'Expert data refreshed from database');
-                      } else {
-                        Alert.alert('Info', 'No updated data found in database');
-                      }
-                    } catch (error) {
-                      console.error('Error refreshing expert data:', error);
-                      Alert.alert('Error', 'Failed to refresh data from database');
-                    } finally {
-                      setLoading(false);
-                    }
-                  }
-                }}
-              >
-                <Ionicons name="refresh-outline" size={20} color={Colors.primary} />
-                <Text style={styles.refreshButtonText}>Refresh</Text>
-              </TouchableOpacity>
+          <View style={styles.infoBox}>
+            <View style={styles.sectionTitleRow}>
+              <Ionicons name="person-circle" size={24} color={Colors.primary} />
+              <Text style={styles.sectionTitle}>Expert Information</Text>
             </View>
 
-            <View style={styles.exInfoRow}>
-              <View style={styles.exStatIcon}>
+            <View style={styles.infoRow}>
+              <View style={styles.statIcon}>
                 <Ionicons name="person-outline" size={22} color={Colors.primary} />
               </View>
-              <View style={styles.exStatContent}>
-                <Text style={styles.exInfoLabel}>Full Name</Text>
-                <Text style={styles.exInfoValue}>{expertName || 'Not available'}</Text>
+              <View style={styles.statContent}>
+                <Text style={styles.infoLabel}>Full Name</Text>
+                <Text style={styles.infoValue}>{expertName || 'Not available'}</Text>
               </View>
             </View>
 
-            <View style={styles.exInfoRow}>
-              <View style={styles.exStatIcon}>
+            <View style={styles.infoRow}>
+              <View style={styles.statIcon}>
                 <Ionicons name="id-card-outline" size={22} color={Colors.primary} />
               </View>
-              <View style={styles.exStatContent}>
-                <Text style={styles.exInfoLabel}>Registration ID</Text>
-                <Text style={styles.exInfoValue}>{expertRegNo || 'Not available'}</Text>
+              <View style={styles.statContent}>
+                <Text style={styles.infoLabel}>Registration ID</Text>
+                <Text style={styles.infoValue}>{expertRegNo || 'Not available'}</Text>
               </View>
             </View>
 
-            <View style={styles.exInfoRow}>
-              <View style={styles.exStatIcon}>
-                <Ionicons name="briefcase-outline" size={22} color={Colors.primary} />
-              </View>
-              <View style={styles.exStatContent}>
-                <Text style={styles.exInfoLabel}>Specialization</Text>
-                <Text style={styles.exInfoValue}>{expertProfile.specialization || 'Mental Health Expert'}</Text>
-              </View>
-            </View>
-
-            <View style={styles.exInfoRow}>
-              <View style={styles.exStatIcon}>
-                <Ionicons name="time-outline" size={22} color={Colors.primary} />
-              </View>
-              <View style={styles.exStatContent}>
-                <Text style={styles.exInfoLabel}>Experience</Text>
-                <Text style={styles.exInfoValue}>{expertProfile.experience || '5+ years'}</Text>
-              </View>
-            </View>
-
-            <View style={styles.exInfoRow}>
-              <View style={styles.exStatIcon}>
+            <View style={styles.infoRow}>
+              <View style={styles.statIcon}>
                 <Ionicons name="mail-outline" size={22} color={Colors.primary} />
               </View>
-              <View style={styles.exStatContent}>
-                <Text style={styles.exInfoLabel}>Email</Text>
-                <Text style={styles.exInfoValue}>{expertProfile.email || 'Not available'}</Text>
+              <View style={styles.statContent}>
+                <Text style={styles.infoLabel}>Email</Text>
+                <Text style={styles.infoValue}>{expertProfile.email || 'Not available'}</Text>
               </View>
             </View>
+          </View>
 
-            <View style={styles.exInfoRow}>
-              <View style={styles.exStatIcon}>
-                <Ionicons name="call-outline" size={22} color={Colors.primary} />
-              </View>
-              <View style={styles.exStatContent}>
-                <Text style={styles.exInfoLabel}>Phone</Text>
-                <Text style={styles.exInfoValue}>{expertProfile.phone || 'Not available'}</Text>
-              </View>
-            </View>
-
-            <View style={styles.exInfoRow}>
-              <View style={styles.exStatIcon}>
-                <Ionicons name="star-outline" size={22} color={Colors.primary} />
-              </View>
-              <View style={styles.exStatContent}>
-                <Text style={styles.exInfoLabel}>Rating</Text>
-                <Text style={styles.exInfoValue}>{expertProfile.rating || '4.8'} ⭐</Text>
-              </View>
-            </View>
-
-            <View style={styles.exInfoRow}>
-              <View style={styles.exStatIcon}>
-                <Ionicons name="school-outline" size={22} color={Colors.primary} />
-              </View>
-              <View style={styles.exStatContent}>
-                <Text style={styles.exInfoLabel}>Qualifications</Text>
-                <Text style={styles.exInfoValue}>{expertProfile.qualifications || 'Licensed Professional'}</Text>
-              </View>
-            </View>
-
-          {/* Logout */}
-          <TouchableOpacity style={styles.exLogoutBtn} onPress={handleLogout}>
-            <Ionicons name="log-out-outline" size={20} color="#d84315" style={{ marginRight: 8 }} />
-            <Text style={styles.exLogoutText}>Logout</Text>
+          {/* Logout Button */}
+          <TouchableOpacity style={styles.logoutBtn} onPress={handleLogout}>
+            <Ionicons name="log-out-outline" size={20} color="#d84315" style={{marginRight: 8}} />
+            <Text style={styles.logoutText}>Logout</Text>
           </TouchableOpacity>
-        </View>
         </View>
       </ScrollView>
 
@@ -355,14 +307,167 @@ export default function ExpertSetting() {
           </View>
         </View>
       </Modal>
-    </SafeAreaView>
+    </LinearGradient>
   );
 }
 
 const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+  },
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingTop: 50,
+    paddingBottom: 20,
+    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+  },
+  backButton: {
+    padding: 8,
+  },
+  backButtonText: {
+    color: Colors.primary,
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  headerTitle: {
+    color: Colors.primary,
+    fontSize: 20,
+    fontWeight: 'bold',
+  },
+  refreshButton: {
+    padding: 8,
+  },
   scrollView: {
     flex: 1,
+  },
+  scrollContent: {
+    paddingBottom: 60,
+  },
+  settingContainer: {
     padding: 20,
+  },
+  profilePicContainer: {
+    overflow: 'hidden',
+    borderRadius: 65,
+    width: 130,
+    height: 130,
+    marginBottom: 16,
+    borderWidth: 4,
+    borderColor: Colors.accent,
+    shadowColor: Colors.shadow,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 8,
+    alignSelf: 'center',
+  },
+  profilePic: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 65,
+    resizeMode: 'cover',
+  },
+  welcomeText: {
+    color: Colors.primary,
+    fontSize: 22,
+    fontWeight: 'bold',
+    textAlign: 'center',
+    marginBottom: 16,
+  },
+  editPhotoBtn: {
+    backgroundColor: Colors.primary,
+    borderRadius: 20,
+    paddingVertical: 10,
+    paddingHorizontal: 24,
+    marginBottom: 24,
+    shadowColor: Colors.shadow,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
+  },
+  editPhotoText: {
+    color: Colors.white,
+    fontSize: 16,
+    fontWeight: '600',
+    textAlign: 'center',
+  },
+  infoBox: {
+    backgroundColor: Colors.white,
+    borderRadius: 16,
+    padding: 20,
+    marginBottom: 20,
+    shadowColor: Colors.shadow,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 4,
+    width: '100%',
+  },
+  sectionTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  sectionTitle: {
+    color: Colors.primary,
+    fontSize: 18,
+    fontWeight: 'bold',
+    marginLeft: 8,
+  },
+  infoRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    backgroundColor: Colors.backgroundLight,
+    borderRadius: 12,
+    marginBottom: 8,
+  },
+  statIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: Colors.accentLight,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  statContent: {
+    flex: 1,
+  },
+  infoLabel: {
+    color: Colors.primary,
+    fontSize: 14,
+    fontWeight: '600',
+    marginBottom: 2,
+  },
+  infoValue: {
+    color: Colors.text,
+    fontSize: 16,
+    fontWeight: '500',
+  },
+  logoutBtn: {
+    backgroundColor: '#ffebee',
+    borderRadius: 16,
+    paddingVertical: 16,
+    paddingHorizontal: 24,
+    marginTop: 20,
+    shadowColor: Colors.shadow,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 4,
+    width: '100%',
+    alignItems: 'center',
+  },
+  logoutText: {
+    color: '#d84315',
+    fontSize: 16,
+    fontWeight: '600',
   },
   exSettingContainer: {
     flex: 1,
@@ -572,21 +677,48 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
   },
-  // Refresh button styles
-  refreshButton: {
+  exProfileRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 8,
-    backgroundColor: Colors.accent + '20',
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: Colors.primary,
+    width: '100%',
+    marginBottom: 20,
+    paddingHorizontal: 10,
   },
-  refreshButtonText: {
-    fontSize: 12,
-    color: Colors.primary,
-    marginLeft: 4,
-    fontWeight: '600',
+  exWelcomeContainer: {
+    flex: 1,
+    marginLeft: 20,
+    alignItems: 'flex-start',
+  },
+  exInfoGrid: {
+    width: '100%',
+  },
+  exInfoRowContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 16,
+  },
+  exInfoItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.backgroundLight,
+    borderRadius: 12,
+    padding: 16,
+    flex: 1,
+    marginHorizontal: 4,
+  },
+  exInfoItemLeft: {
+    marginRight: 8,
+  },
+  exInfoItemRight: {
+    marginLeft: 8,
+  },
+  exInfoItemFull: {
+    marginHorizontal: 0,
+  },
+  exActionRow: {
+    width: '100%',
+    alignItems: 'center',
+    marginTop: 20,
   },
   modalOverlay: {
     flex: 1,
