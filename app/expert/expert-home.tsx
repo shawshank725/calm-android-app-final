@@ -1,3 +1,4 @@
+import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as DocumentPicker from 'expo-document-picker';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -72,6 +73,19 @@ export default function ExpertHome() {
   const [detailedMoodEntries, setDetailedMoodEntries] = useState<{date: string, emoji: string, label: string, time: string, notes?: string}[]>([]);
   const [nextMoodPrompt, setNextMoodPrompt] = useState<Date | null>(null);
   const [currentPromptInfo, setCurrentPromptInfo] = useState<{timeLabel: string, scheduleKey: string} | null>(null);
+
+  // Notification states
+  const [showNotificationModal, setShowNotificationModal] = useState(false);
+  const [notifications, setNotifications] = useState<any[]>([]);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [notificationForm, setNotificationForm] = useState({
+    title: '',
+    message: '',
+    recipient_type: 'all',
+    notification_type: 'general',
+    priority: 'medium'
+  });
+  const [sendingNotification, setSendingNotification] = useState(false);
 
   const categories = [
     'Academic Resources',
@@ -201,6 +215,13 @@ export default function ExpertHome() {
     loadExpertData();
   }, [params.registration]);
 
+  // Load notifications when expert data is available
+  useEffect(() => {
+    if (expertRegNo) {
+      loadNotifications();
+    }
+  }, [expertRegNo]);
+
   // Save expert persistent/session data
   const saveExpertDataToPersistentStorage = async (regNo: string, data: any) => {
     try {
@@ -248,6 +269,125 @@ export default function ExpertHome() {
     } catch (error) {
       console.error('Logout error:', error);
       router.replace('/');
+    }
+  };
+
+  // Notification functions
+  const loadNotifications = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('notifications')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(50);
+
+      if (error) {
+        console.error('Error loading notifications:', error);
+        return;
+      }
+
+      setNotifications(data || []);
+
+      // Count unread notifications
+      const unread = (data || []).filter(notification => !notification.is_read).length;
+      setUnreadCount(unread);
+    } catch (error) {
+      console.error('Error loading notifications:', error);
+    }
+  };
+
+  const sendNotification = async () => {
+    if (!notificationForm.title.trim() || !notificationForm.message.trim()) {
+      Alert.alert('Error', 'Please fill in both title and message fields.');
+      return;
+    }
+
+    try {
+      setSendingNotification(true);
+
+      const { data, error } = await supabase
+        .from('notifications')
+        .insert({
+          sender_id: expertRegNo,
+          sender_name: expertName,
+          sender_type: 'expert',
+          recipient_type: notificationForm.recipient_type,
+          title: notificationForm.title,
+          message: notificationForm.message,
+          priority: notificationForm.priority,
+        });
+
+      if (error) {
+        throw error;
+      }
+
+      Alert.alert('Success', 'Notification sent successfully!');
+      setNotificationForm({
+        title: '',
+        message: '',
+        recipient_type: 'all',
+        notification_type: 'general',
+        priority: 'medium'
+      });
+      setShowNotificationModal(false);
+
+      // Reload notifications
+      await loadNotifications();
+    } catch (error) {
+      console.error('Error sending notification:', error);
+      Alert.alert('Error', 'Failed to send notification. Please try again.');
+    } finally {
+      setSendingNotification(false);
+    }
+  };
+
+  const markNotificationAsRead = async (notificationId: string) => {
+    try {
+      const { error } = await supabase
+        .from('notifications')
+        .update({ is_read: true })
+        .eq('id', notificationId);
+
+      if (error) {
+        console.error('Error marking notification as read:', error);
+        return;
+      }
+
+      // Update local state
+      setNotifications(prev =>
+        prev.map(notification =>
+          notification.id === notificationId
+            ? { ...notification, is_read: true }
+            : notification
+        )
+      );
+
+      setUnreadCount(prev => Math.max(0, prev - 1));
+    } catch (error) {
+      console.error('Error marking notification as read:', error);
+    }
+  };
+
+  const markAllNotificationsAsRead = async () => {
+    try {
+      const { error } = await supabase
+        .from('notifications')
+        .update({ is_read: true })
+        .or(`recipient_id.eq.${expertRegNo},recipient_type.eq.all,recipient_type.eq.expert`)
+        .eq('is_read', false);
+
+      if (error) {
+        console.error('Error marking all notifications as read:', error);
+        return;
+      }
+
+      // Update local state
+      setNotifications(prev =>
+        prev.map(notification => ({ ...notification, is_read: true }))
+      );
+      setUnreadCount(0);
+    } catch (error) {
+      console.error('Error marking all notifications as read:', error);
     }
   };
 
@@ -743,8 +883,55 @@ export default function ExpertHome() {
 
         {/* Help Floating Button removed as per requirement: Help only on Select page */}
 
-        {/* AI Floating Button - Only show on Home tab */}
-        <View style={{ position: 'absolute', top: 42, right: 20, zIndex: 20 }}>
+        {/* Top Right Actions - Notification Bell and AI Button */}
+        <View style={{ position: 'absolute', top: 42, right: 20, zIndex: 20, flexDirection: 'row', gap: 12 }}>
+          {/* Notification Bell */}
+          <TouchableOpacity
+            style={{
+              width: 40,
+              height: 40,
+              borderRadius: 22,
+              backgroundColor: Colors.white,
+              justifyContent: 'center',
+              alignItems: 'center',
+              elevation: 8,
+              shadowColor: Colors.shadow,
+              shadowOffset: { width: 0, height: 3 },
+              shadowOpacity: 0.22,
+              shadowRadius: 5,
+              borderWidth: 2,
+              borderColor: Colors.primary
+            }}
+            onPress={() => setShowNotificationModal(true)}
+          >
+            <Ionicons name="notifications" size={20} color={Colors.primary} />
+            {unreadCount > 0 && (
+              <View style={{
+                position: 'absolute',
+                top: -2,
+                right: -2,
+                backgroundColor: '#ff4444',
+                borderRadius: 10,
+                minWidth: 18,
+                height: 18,
+                justifyContent: 'center',
+                alignItems: 'center',
+                borderWidth: 2,
+                borderColor: Colors.white,
+              }}>
+                <Text style={{
+                  color: Colors.white,
+                  fontSize: 10,
+                  fontWeight: 'bold',
+                  textAlign: 'center',
+                }}>
+                  {unreadCount > 99 ? '99+' : unreadCount}
+                </Text>
+              </View>
+            )}
+          </TouchableOpacity>
+
+          {/* AI Floating Button */}
           <TouchableOpacity
             style={{ width: 40, height: 40, borderRadius: 22, backgroundColor: Colors.white, justifyContent: 'center', alignItems: 'center', elevation: 8, shadowColor: Colors.shadow, shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.22, shadowRadius: 5, borderWidth: 2, borderColor: Colors.primary }}
             onPress={() => router.push('/student/ai')}
@@ -1051,6 +1238,218 @@ export default function ExpertHome() {
               ))}
             </View>
           </KeyboardAvoidingView>
+        </View>
+      </Modal>
+
+      {/* Notification Modal */}
+      <Modal
+        visible={showNotificationModal}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => setShowNotificationModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { maxHeight: '90%' }]}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>🔔 Notifications</Text>
+              <TouchableOpacity
+                onPress={() => setShowNotificationModal(false)}
+                style={styles.modalCloseButton}
+              >
+                <Ionicons name="close" size={24} color={Colors.textSecondary} />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView style={styles.modalBody}>
+              {/* Notification Actions */}
+              <View style={{ marginBottom: 20 }}>
+                <View style={{ flexDirection: 'row', gap: 10, marginBottom: 15 }}>
+                  <TouchableOpacity
+                    style={[styles.notificationActionButton, { backgroundColor: Colors.primary }]}
+                    onPress={() => {
+                      setNotificationForm({
+                        title: '',
+                        message: '',
+                        recipient_type: 'all',
+                        notification_type: 'general',
+                        priority: 'medium'
+                      });
+                    }}
+                  >
+                    <Ionicons name="add" size={16} color={Colors.white} />
+                    <Text style={[styles.notificationActionText, { color: Colors.white }]}>Send New</Text>
+                  </TouchableOpacity>
+
+                  {unreadCount > 0 && (
+                    <TouchableOpacity
+                      style={[styles.notificationActionButton, { backgroundColor: Colors.backgroundLight }]}
+                      onPress={markAllNotificationsAsRead}
+                    >
+                      <Ionicons name="checkmark-done" size={16} color={Colors.primary} />
+                      <Text style={[styles.notificationActionText, { color: Colors.primary }]}>Mark All Read</Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
+
+                {/* Send Notification Form */}
+                <View style={styles.notificationForm}>
+                  <Text style={styles.formLabel}>Send Notification</Text>
+
+                  <TextInput
+                    style={styles.formInput}
+                    placeholder="Notification title..."
+                    value={notificationForm.title}
+                    onChangeText={(text) => setNotificationForm(prev => ({ ...prev, title: text }))}
+                    maxLength={100}
+                  />
+
+                  <TextInput
+                    style={[styles.formInput, styles.formTextArea]}
+                    placeholder="Notification message..."
+                    value={notificationForm.message}
+                    onChangeText={(text) => setNotificationForm(prev => ({ ...prev, message: text }))}
+                    multiline
+                    numberOfLines={3}
+                    maxLength={500}
+                  />
+
+                  <View style={{ flexDirection: 'row', gap: 10, marginBottom: 15 }}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.formLabel}>Send To</Text>
+                      <View style={styles.pickerContainer}>
+                        <TouchableOpacity
+                          style={styles.picker}
+                          onPress={() => {
+                            Alert.alert(
+                              'Select Recipients',
+                              'Who should receive this notification?',
+                              [
+                                { text: 'All Users', onPress: () => setNotificationForm(prev => ({ ...prev, recipient_type: 'all' })) },
+                                { text: 'Students Only', onPress: () => setNotificationForm(prev => ({ ...prev, recipient_type: 'student' })) },
+                                { text: 'Experts Only', onPress: () => setNotificationForm(prev => ({ ...prev, recipient_type: 'expert' })) },
+                                { text: 'Peers Only', onPress: () => setNotificationForm(prev => ({ ...prev, recipient_type: 'peer' })) },
+                                { text: 'Cancel', style: 'cancel' }
+                              ]
+                            );
+                          }}
+                        >
+                          <Text style={styles.pickerText}>
+                            {notificationForm.recipient_type === 'all' ? 'All Users' :
+                             notificationForm.recipient_type === 'student' ? 'Students' :
+                             notificationForm.recipient_type === 'expert' ? 'Experts' :
+                             notificationForm.recipient_type === 'peer' ? 'Peers' : 'Select...'}
+                          </Text>
+                          <Ionicons name="chevron-down" size={16} color={Colors.textSecondary} />
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.formLabel}>Priority</Text>
+                      <View style={styles.pickerContainer}>
+                        <TouchableOpacity
+                          style={styles.picker}
+                          onPress={() => {
+                            Alert.alert(
+                              'Select Priority',
+                              'Choose notification priority level',
+                              [
+                                { text: 'Low', onPress: () => setNotificationForm(prev => ({ ...prev, priority: 'low' })) },
+                                { text: 'Medium', onPress: () => setNotificationForm(prev => ({ ...prev, priority: 'medium' })) },
+                                { text: 'High', onPress: () => setNotificationForm(prev => ({ ...prev, priority: 'high' })) },
+                                { text: 'Urgent', onPress: () => setNotificationForm(prev => ({ ...prev, priority: 'urgent' })) },
+                                { text: 'Cancel', style: 'cancel' }
+                              ]
+                            );
+                          }}
+                        >
+                          <Text style={styles.pickerText}>
+                            {notificationForm.priority.charAt(0).toUpperCase() + notificationForm.priority.slice(1)}
+                          </Text>
+                          <Ionicons name="chevron-down" size={16} color={Colors.textSecondary} />
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+                  </View>
+
+                  <TouchableOpacity
+                    style={[styles.sendNotificationButton, sendingNotification && styles.sendNotificationButtonDisabled]}
+                    onPress={sendNotification}
+                    disabled={sendingNotification}
+                  >
+                    {sendingNotification ? (
+                      <ActivityIndicator size="small" color={Colors.white} />
+                    ) : (
+                      <>
+                        <Ionicons name="send" size={16} color={Colors.white} />
+                        <Text style={styles.sendNotificationButtonText}>Send Notification</Text>
+                      </>
+                    )}
+                  </TouchableOpacity>
+                </View>
+              </View>
+
+              {/* Notifications List */}
+              <View>
+                <Text style={styles.notificationsListTitle}>
+                  Recent Notifications ({notifications.length})
+                </Text>
+
+                {notifications.length === 0 ? (
+                  <View style={styles.emptyNotifications}>
+                    <Ionicons name="notifications-off-outline" size={48} color={Colors.textSecondary} />
+                    <Text style={styles.emptyNotificationsText}>No notifications yet</Text>
+                  </View>
+                ) : (
+                  notifications.map((notification) => (
+                    <TouchableOpacity
+                      key={notification.id}
+                      style={[
+                        styles.notificationItem,
+                        !notification.is_read && styles.notificationItemUnread
+                      ]}
+                      onPress={() => !notification.is_read && markNotificationAsRead(notification.id)}
+                    >
+                      <View style={styles.notificationHeader}>
+                        <View style={styles.notificationMeta}>
+                          <Text style={styles.notificationSender}>
+                            {notification.sender_name} ({notification.sender_type})
+                          </Text>
+                          <Text style={styles.notificationTime}>
+                            {new Date(notification.created_at).toLocaleDateString()} {new Date(notification.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                          </Text>
+                        </View>
+                        {!notification.is_read && (
+                          <View style={styles.unreadIndicator} />
+                        )}
+                      </View>
+
+                      <Text style={styles.notificationTitle}>{notification.title}</Text>
+                      <Text style={styles.notificationMessage}>{notification.message}</Text>
+
+                      <View style={styles.notificationFooter}>
+                        <View style={[
+                          styles.priorityBadge,
+                          { backgroundColor:
+                            notification.priority === 'urgent' ? '#ff4444' :
+                            notification.priority === 'high' ? '#ff8800' :
+                            notification.priority === 'medium' ? '#4CAF50' : '#666666'
+                          }
+                        ]}>
+                          <Text style={styles.priorityBadgeText}>
+                            {notification.priority.toUpperCase()}
+                          </Text>
+                        </View>
+                        <Text style={styles.notificationType}>
+                          {notification.notification_type}
+                        </Text>
+                      </View>
+                    </TouchableOpacity>
+                  ))
+                )}
+              </View>
+            </ScrollView>
+          </View>
         </View>
       </Modal>
 
@@ -1694,5 +2093,151 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: 'bold',
     textAlign: 'center',
+  },
+  // Notification Modal Styles
+  notificationActionButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 8,
+    gap: 6,
+  },
+  notificationActionText: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  notificationForm: {
+    backgroundColor: Colors.backgroundLight,
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 20,
+  },
+  pickerContainer: {
+    marginBottom: 10,
+  },
+  picker: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    backgroundColor: Colors.white,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
+  pickerText: {
+    fontSize: 14,
+    color: Colors.text,
+  },
+  sendNotificationButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: Colors.primary,
+    borderRadius: 8,
+    paddingVertical: 12,
+    gap: 8,
+  },
+  sendNotificationButtonDisabled: {
+    backgroundColor: Colors.textSecondary,
+  },
+  sendNotificationButtonText: {
+    color: Colors.white,
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  notificationsListTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: Colors.text,
+    marginBottom: 15,
+  },
+  emptyNotifications: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 40,
+  },
+  emptyNotificationsText: {
+    fontSize: 16,
+    color: Colors.textSecondary,
+    marginTop: 12,
+    textAlign: 'center',
+  },
+  notificationItem: {
+    backgroundColor: Colors.backgroundLight,
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 12,
+    borderLeftWidth: 4,
+    borderLeftColor: Colors.border,
+  },
+  notificationItemUnread: {
+    backgroundColor: Colors.white,
+    borderLeftColor: Colors.primary,
+    shadowColor: Colors.shadow,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  notificationHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 8,
+  },
+  notificationMeta: {
+    flex: 1,
+  },
+  notificationSender: {
+    fontSize: 12,
+    color: Colors.textSecondary,
+    fontWeight: '600',
+  },
+  notificationTime: {
+    fontSize: 11,
+    color: Colors.textSecondary,
+    marginTop: 2,
+  },
+  unreadIndicator: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: Colors.primary,
+    marginLeft: 8,
+  },
+  notificationTitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: Colors.text,
+    marginBottom: 6,
+  },
+  notificationMessage: {
+    fontSize: 14,
+    color: Colors.text,
+    lineHeight: 20,
+    marginBottom: 12,
+  },
+  notificationFooter: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  priorityBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  priorityBadgeText: {
+    color: Colors.white,
+    fontSize: 10,
+    fontWeight: 'bold',
+  },
+  notificationType: {
+    fontSize: 12,
+    color: Colors.textSecondary,
+    fontStyle: 'italic',
   },
 });

@@ -61,10 +61,9 @@ export default function ConsultationPage() {
         registration: ''
     });
 
-    // Load expert info and students on component mount
+    // Load expert info on component mount
     useEffect(() => {
         loadExpertInfo();
-        loadStudents();
     }, []);
 
     // Load messages when expert info is available
@@ -73,6 +72,11 @@ export default function ConsultationPage() {
             loadMessages();
         }
     }, [expertInfo.registration]);
+
+    // Load students after conversations are updated
+    useEffect(() => {
+        loadStudents();
+    }, [groupedConversations]);
 
     // Set up real-time subscription for new messages
     useEffect(() => {
@@ -147,22 +151,34 @@ export default function ConsultationPage() {
 
     const loadStudents = async () => {
         try {
-            // Load students from Supabase
-            const { data: studentsData, error } = await supabase
-                .from('students')
-                .select('*')
-                .order('user_name');
+            // Since we don't have a separate students table, we'll extract student info from messages
+            // or provide a way to manually add student information
 
-            if (error) {
-                console.error('Error loading students:', error);
+            // Option 1: Extract unique students from messages
+            const uniqueStudents = groupedConversations
+                .filter(conv => conv.sender_type === 'STUDENT')
+                .map(conv => ({
+                    id: conv.sender_id,
+                    user_name: conv.sender_name,
+                    registration_number: conv.sender_id,
+                    email: `${conv.sender_id}@student.edu`, // Mock email
+                    course: 'Not specified' // Default course
+                }));
+
+            // Option 2: If no messages exist, provide empty state
+            if (uniqueStudents.length === 0) {
+                console.log('No students found in messages. Students will appear here after they send messages.');
                 setStudents([]);
-            } else if (studentsData) {
-                setStudents(studentsData);
-                setFilteredStudents(studentsData);
+                setFilteredStudents([]);
+                return;
             }
+
+            setStudents(uniqueStudents);
+            setFilteredStudents(uniqueStudents);
         } catch (error) {
             console.error('Error loading students:', error);
             setStudents([]);
+            setFilteredStudents([]);
         }
     };
 
@@ -237,10 +253,38 @@ export default function ConsultationPage() {
         }
 
         const resultCount = filteredStudents.length;
-        Alert.alert(
-            'Search Results',
-            `Found ${resultCount} student${resultCount !== 1 ? 's' : ''} matching "${searchText}"`
-        );
+
+        // If no results found, offer to start a chat with the entered ID
+        if (resultCount === 0 && searchText.trim().length > 0) {
+            Alert.alert(
+                'Student Not Found',
+                `No student found matching "${searchText}". Would you like to start a chat with this student ID?`,
+                [
+                    { text: 'Cancel', style: 'cancel' },
+                    {
+                        text: 'Start Chat',
+                        onPress: () => {
+                            // Start chat with manually entered student ID
+                            router.push({
+                                pathname: './expert-chat',
+                                params: {
+                                    studentId: searchText.trim(),
+                                    studentName: `Student ${searchText.trim()}`,
+                                    studentReg: searchText.trim(),
+                                    expertReg: expertInfo.registration,
+                                    expertName: expertInfo.name
+                                }
+                            });
+                        }
+                    }
+                ]
+            );
+        } else {
+            Alert.alert(
+                'Search Results',
+                `Found ${resultCount} student${resultCount !== 1 ? 's' : ''} matching "${searchText}"`
+            );
+        }
     };
 
     const selectStudent = (student: Student) => {
@@ -348,7 +392,7 @@ export default function ConsultationPage() {
                 </TouchableOpacity>
                 <Text style={styles.headerTitle}>� Consultation</Text>
                 <Text style={styles.headerSubtitle}>
-                    {activeTab === 'messages' ? 'Recent messages from students' : 'Search by roll number or name'}
+                    {activeTab === 'messages' ? 'Recent messages from students' : 'Enter student ID to start a chat'}
                 </Text>
             </View>
 
@@ -379,7 +423,7 @@ export default function ConsultationPage() {
                         <Text style={styles.searchIcon}>🔍</Text>
                         <TextInput
                             style={styles.searchInput}
-                            placeholder="Search by roll number or name..."
+                            placeholder="Enter student ID or name to chat..."
                             placeholderTextColor="#999"
                             value={searchText}
                             onChangeText={setSearchText}
@@ -432,15 +476,15 @@ export default function ConsultationPage() {
                                     <Text style={styles.emptyIcon}>🔍</Text>
                                     <Text style={styles.emptyTitle}>No Students Found</Text>
                                     <Text style={styles.emptyText}>
-                                        No students found matching "{searchText}"
+                                        No students found matching &quot;{searchText}&quot;
                                     </Text>
                                 </>
                             ) : (
                                 <>
                                     <Text style={styles.emptyIcon}>👨‍🎓</Text>
-                                    <Text style={styles.emptyTitle}>Find Students</Text>
+                                    <Text style={styles.emptyTitle}>No Students Yet</Text>
                                     <Text style={styles.emptyText}>
-                                        Search for students by their roll number or name to start a conversation.
+                                        Students will appear here after they send you messages. Check the &quot;Conversations&quot; tab to see any existing messages.
                                     </Text>
                                 </>
                             )}

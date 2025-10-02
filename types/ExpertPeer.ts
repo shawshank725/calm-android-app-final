@@ -1,8 +1,9 @@
+export type ExpertPeer = "EXPERT" | "PEER";
 
-
-export type ExpertSlot = {
+export type ExpertPeerSlot = {
     id: number;
-    expert_id: number | undefined;
+    expert_peer_id: number;
     start_time: Date;
     end_time: Date;
+    group: ExpertPeer;
 };

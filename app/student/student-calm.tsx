@@ -82,7 +82,6 @@ export default function StudentCalm() {
           .from('user_requests')
           .select('*')
           .eq('user_type', 'Expert')
-          .eq('status', 'approved')
           .order('user_name');
 
         if (error) {
@@ -132,7 +131,6 @@ export default function StudentCalm() {
           .from('user_requests')
           .select('*')
           .eq('user_type', 'Peer Listener')
-          .eq('status', 'approved') // Only show approved peer listeners
           .order('user_name');
 
         if (error) {

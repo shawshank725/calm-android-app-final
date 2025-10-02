@@ -7,21 +7,21 @@ import { DataTable } from 'react-native-paper';
 import Toast from 'react-native-toast-message';
 import { useExpertPeerSlots, useInsertSlot } from '../../api/expert-peer/expert-peer';
 import { supabase } from '../../lib/supabase';
-import { ExpertSlot } from '../../types/ExpertPeer';
+import { ExpertPeerSlot } from '../../types/ExpertPeer';
 
 export default function ExpertSlotScreen() {
-    const [expertId, setExpertId] = useState("");
+    const [expertRegistrationNumber, setExpertRegistrationNumber] = useState("");
 
     useEffect(() => {
         const getExpertId = async () => {
-            const id = await AsyncStorage.getItem("currentExpertId");
-            if (id) setExpertId(id);
+            const id = await AsyncStorage.getItem("currentExpertReg");
+            if (id) setExpertRegistrationNumber(id);
         };
 
         getExpertId();
     }, []);
 
-    const { data: expertSlots, isLoading: isExpertSlotLoading, refetch: refetchExpertPeerSlots } = useExpertPeerSlots(expertId);
+    const { data: expertSlots, isLoading: isExpertSlotLoading, refetch: refetchExpertPeerSlots } = useExpertPeerSlots(Number(expertRegistrationNumber));
     const [showModal, setShowModal] = useState<boolean>(false);
     const [startTime, setStartTime] = useState(new Date());
     const [endTime, setEndTime] = useState(new Date());
@@ -75,7 +75,7 @@ export default function ExpertSlotScreen() {
 
         insertMutate(
             {
-                expert_id: Number.parseInt(expertId),
+                expert_peer_id: Number.parseInt(expertRegistrationNumber),
                 start_time: startTime,
                 end_time: endTime,
             },
@@ -122,7 +122,7 @@ export default function ExpertSlotScreen() {
                             <DataTable.Title>End Time</DataTable.Title>
                             <DataTable.Title>Delete</DataTable.Title>
                         </DataTable.Header>
-                        {expertSlots?.map((slot: ExpertSlot, index: number) => (
+                        {expertSlots?.map((slot: ExpertPeerSlot, index: number) => (
                             <DataTable.Row key={slot.id}>
                                 <DataTable.Cell>{index + 1}</DataTable.Cell>
                                 <DataTable.Cell>
@@ -137,7 +137,7 @@ export default function ExpertSlotScreen() {
                                         size={22}
                                         color="red"
                                         onPress={async () => {
-                                            const result = await supabase.from('expert_slots').delete().match({ id: slot.id });
+                                            const result = await supabase.from('expert_peer_slots').delete().match({ id: slot.id });
                                             if (!result.error) {
                                                 Toast.show({
                                                     type: 'success',
@@ -206,7 +206,6 @@ export default function ExpertSlotScreen() {
 
                             <View style={styles.addButtonContainer}>
                                 <Text disabled={disabledButton} style={[styles.addButton, disabledButton && styles.disabledButton]} onPress={()=> {
-                                        console.log("PRESSING")
                                         insertSlot();
                                 }}>
                                     Add this slot
