@@ -4,7 +4,7 @@
     "slug": "calm-space",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/images/icon.png",
+    "icon": "./assets/images/iconlogo2.png",
     "scheme": "calm-space",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
@@ -22,21 +22,21 @@
         "CAMERA"
       ],
       "adaptiveIcon": {
-        "foregroundImage": "./assets/images/icon.png",
+        "foregroundImage": "./assets/images/logo2.png",
         "backgroundColor": "#ffffff"
       }
     },
     "web": {
       "bundler": "metro",
       "output": "static",
-      "favicon": "./assets/images/logo.png"
+      "favicon": "./assets/images/logo2.png"
     },
     "plugins": [
       "expo-router",
       [
         "expo-splash-screen",
         {
-          "image": "./assets/images/logo.png",
+          "image": "./assets/images/logo2.png",
           "imageWidth": 200,
           "resizeMode": "contain",
           "backgroundColor": "#ffffff"
@@ -49,7 +49,7 @@
       "typedRoutes": true
     },
     "splash": {
-      "image": "./assets/images/logo.png",
+      "image": "./assets/images/logo2.png",
       "resizeMode": "contain",
       "backgroundColor": "#ffffff"
     }
