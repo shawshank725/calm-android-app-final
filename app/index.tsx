@@ -44,11 +44,11 @@ export default function FrontPage() {
       <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: 'white' }}>
         <Image
           source={require('../assets/images/logo2.png')}
-          style={{ width: 250, height: 200, marginTop: 50 }}
+          style={{ width: 450, height: 300 , marginLeft: 25}}
         />
         <Text style={{
           textAlign: 'center',
-          fontSize: 60,
+          fontSize: 80,
           fontWeight: '600',
           color: '#4F21A2',
           fontFamily: 'Agbalumo',

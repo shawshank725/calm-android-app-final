@@ -4,7 +4,7 @@
     "slug": "calm-space",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/images/iconlogo2.png",
+    "icon": "./assets/images/logo2.png",
     "scheme": "calm-space",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
