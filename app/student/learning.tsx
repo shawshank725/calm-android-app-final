@@ -12,9 +12,14 @@ import {
   StyleSheet,
   Text,
   TouchableOpacity,
-  View
+  View,
+  Image,
+  ActivityIndicator,
+  ScrollView
 } from 'react-native';
 import { supabase } from '../../lib/supabase';
+import * as FileSystem from 'expo-file-system';
+import * as MediaLibrary from 'expo-media-library';
 
 interface LearningResource {
   id: string;
@@ -37,8 +42,9 @@ export default function LearningSupport() {
   const [selectedCategory, setSelectedCategory] = useState<string>('All');
   const [selectedResource, setSelectedResource] = useState<LearningResource | null>(null);
   const [showPreviewModal, setShowPreviewModal] = useState(false);
+  const [downloading, setDownloading] = useState(false);
 
-  const categories = ['All', 'remBETTER', 'VIDEOS', 'GUIDES'];
+  const categories = ['All', 'REMEMBER BETTER', 'VIDEOS', 'GUIDES'];
 
   useEffect(() => {
     loadStudentInfo();
@@ -49,7 +55,7 @@ export default function LearningSupport() {
       setFilteredResources(resources);
     } else {
       // Filter resources by exact category match
-      setFilteredResources(resources.filter(resource => 
+      setFilteredResources(resources.filter(resource =>
         resource.category && resource.category.toUpperCase() === selectedCategory.toUpperCase()
       ));
     }
@@ -131,7 +137,7 @@ export default function LearningSupport() {
           description: item.description || 'No description available',
           file_url: item.file_url || item.url || '',
           file_type: item.file_type || item.type || 'unknown',
-          category: item.category || 'BETTER' // Default to BETTER category
+          category: item.category || 'REMEMBER BETTER' // Default to BETTER category
         }));
 
         console.log(`Loaded ${mappedResources.length} resources from library table`);
@@ -154,24 +160,70 @@ export default function LearningSupport() {
 
   const handleDownload = async (resource: LearningResource) => {
     try {
+      // Request media library permissions
+      const { status } = await MediaLibrary.requestPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Permission Required', 'Please grant storage permissions to download files.');
+        return;
+      }
+
       Alert.alert(
         'Download Resource',
-        `Download "${resource.resource_title}"?`,
+        `Download "${resource.resource_title}" to your device?`,
         [
           { text: 'Cancel', style: 'cancel' },
           {
             text: 'Download',
             onPress: async () => {
               try {
-                if (resource.file_url.startsWith('http')) {
-                  await Linking.openURL(resource.file_url);
-                  Alert.alert('Success', 'Opening resource...');
+                setDownloading(true);
+
+                // Get the file URL from Supabase storage
+                let fileUrl = resource.file_url;
+
+                // If it's a storage path, get the public URL
+                if (!fileUrl.startsWith('http')) {
+                  const { data } = supabase.storage
+                    .from('library_pdfs')
+                    .getPublicUrl(fileUrl);
+                  
+                  fileUrl = data.publicUrl;
+                }
+
+                // Generate file name
+                const fileExtension = resource.file_type.split('/')[1] || 'file';
+                const fileName = `${resource.resource_title.replace(/[^a-z0-9]/gi, '_')}.${fileExtension}`;
+                const fileUri = FileSystem.documentDirectory + fileName;
+
+                // Download the file
+                const downloadResult = await FileSystem.downloadAsync(fileUrl, fileUri);
+
+                if (downloadResult.status === 200) {
+                  // Save to media library (Photos/Videos) or Downloads folder
+                  if (resource.file_type.startsWith('image/') || resource.file_type.startsWith('video/')) {
+                    const asset = await MediaLibrary.createAssetAsync(downloadResult.uri);
+                    await MediaLibrary.createAlbumAsync('CalmCompanion', asset, false);
+                    Alert.alert(
+                      'Download Complete!',
+                      `${resource.resource_title} has been saved to your ${resource.file_type.startsWith('image/') ? 'Photos' : 'Videos'} in the CalmCompanion album.`,
+                      [{ text: 'OK' }]
+                    );
+                  } else {
+                    // For PDFs and other files
+                    Alert.alert(
+                      'Download Complete!',
+                      `${resource.resource_title} has been saved to your device.\n\nLocation: ${fileUri}`,
+                      [{ text: 'OK' }]
+                    );
+                  }
                 } else {
-                  Alert.alert('Error', 'Invalid resource URL');
+                  Alert.alert('Download Failed', 'Unable to download the file. Please try again.');
                 }
               } catch (downloadError) {
                 console.error('Download error:', downloadError);
-                Alert.alert('Error', 'Failed to open resource');
+                Alert.alert('Download Error', 'Failed to download the file. Please check your internet connection.');
+              } finally {
+                setDownloading(false);
               }
             }
           }
@@ -183,9 +235,42 @@ export default function LearningSupport() {
     }
   };
 
-  const handlePreview = (resource: LearningResource) => {
-    setSelectedResource(resource);
-    setShowPreviewModal(true);
+  const handlePreview = async (resource: LearningResource) => {
+    try {
+      // Get the file URL from Supabase storage
+      let fileUrl = resource.file_url;
+
+      // If it's a storage path, get the public URL
+      if (!fileUrl.startsWith('http')) {
+        const { data } = supabase.storage
+          .from('library_pdfs')
+          .getPublicUrl(fileUrl);
+        
+        fileUrl = data.publicUrl;
+      }
+
+      // For PDFs, open in browser
+      if (resource.file_type === 'application/pdf') {
+        await Linking.openURL(fileUrl);
+      } 
+      // For images, show in modal
+      else if (resource.file_type.startsWith('image/')) {
+        // Update resource with public URL for modal display
+        setSelectedResource({ ...resource, file_url: fileUrl });
+        setShowPreviewModal(true);
+      }
+      // For videos, open in external player
+      else if (resource.file_type.startsWith('video/')) {
+        await Linking.openURL(fileUrl);
+      }
+      // For other types, try to open
+      else {
+        await Linking.openURL(fileUrl);
+      }
+    } catch (error) {
+      console.error('Preview error:', error);
+      Alert.alert('Preview Error', 'Unable to preview this file. You can try downloading it instead.');
+    }
   };
 
   const renderCategoryButton = ({ item }: { item: string }) => (
@@ -331,11 +416,22 @@ export default function LearningSupport() {
             </View>
 
             {selectedResource && (
-              <View style={styles.modalBody}>
+              <ScrollView style={styles.modalBody}>
                 <Text style={styles.modalResourceTitle}>{selectedResource.resource_title}</Text>
                 <Text style={styles.modalResourceDescription}>
                   {selectedResource.description}
                 </Text>
+
+                {/* Preview Content - Only for images */}
+                {selectedResource.file_type.startsWith('image/') && (
+                  <View style={styles.previewContainer}>
+                    <Image
+                      source={{ uri: selectedResource.file_url }}
+                      style={styles.previewImage}
+                      resizeMode="contain"
+                    />
+                  </View>
+                )}
 
                 <View style={styles.modalResourceDetails}>
                   <Text style={styles.modalDetailText}>
@@ -347,18 +443,25 @@ export default function LearningSupport() {
                 </View>
 
                 <View style={styles.modalActions}>
-                  <TouchableOpacity
-                    style={styles.modalDownloadButton}
-                    onPress={() => {
-                      setShowPreviewModal(false);
-                      handleDownload(selectedResource);
-                    }}
-                    activeOpacity={0.7}
-                  >
-                    <Text style={styles.modalDownloadButtonText}>⬇️ Download Resource</Text>
-                  </TouchableOpacity>
+                  {downloading ? (
+                    <View style={styles.downloadingContainer}>
+                      <ActivityIndicator size="small" color="#7b1fa2" />
+                      <Text style={styles.downloadingText}>Downloading...</Text>
+                    </View>
+                  ) : (
+                    <TouchableOpacity
+                      style={styles.modalDownloadButton}
+                      onPress={() => {
+                        setShowPreviewModal(false);
+                        handleDownload(selectedResource);
+                      }}
+                      activeOpacity={0.7}
+                    >
+                      <Text style={styles.modalDownloadButtonText}>⬇️ Download to Device</Text>
+                    </TouchableOpacity>
+                  )}
                 </View>
-              </View>
+              </ScrollView>
             )}
           </View>
         </View>
@@ -644,6 +747,31 @@ const styles = StyleSheet.create({
     color: '#ffffff',
     fontSize: 16,
     fontWeight: 'bold',
+  },
+  previewContainer: {
+    marginVertical: 15,
+    backgroundColor: '#f5f5f5',
+    borderRadius: 12,
+    overflow: 'hidden',
+    minHeight: 200,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  previewImage: {
+    width: '100%',
+    height: 300,
+  },
+  downloadingContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 15,
+  },
+  downloadingText: {
+    marginLeft: 10,
+    fontSize: 16,
+    color: '#7b1fa2',
+    fontWeight: '600',
   },
   footer: {
     backgroundColor: '#f8f9fa',
