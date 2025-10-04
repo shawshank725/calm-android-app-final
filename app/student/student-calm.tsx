@@ -218,19 +218,10 @@ export default function StudentCalm() {
 
       console.log('Loading session history for:', regNo);
 
-      // Query Supabase for user's booked sessions
+      // Query Supabase for user's booked sessions - use only book_request table
       const { data: sessions, error } = await supabase
         .from('book_request')
-        .select(`
-          id,
-          expert_id,
-          session_date,
-          session_time,
-          status,
-          book_title,
-          created_at,
-          user_requests!inner(user_name, specialization, user_type)
-        `)
+        .select('*')
         .eq('student_reg', regNo)
         .order('created_at', { ascending: false });
 
@@ -763,10 +754,13 @@ export default function StudentCalm() {
                   <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                     <View style={{ flex: 1 }}>
                       <Text style={{ fontSize: 16, fontWeight: 'bold', color: Colors.primary, marginBottom: 4 }}>
-                        {session.user_requests?.user_name || 'Unknown Expert'}
+                        {session.expert_name || 'Unknown Expert'}
                       </Text>
                       <Text style={{ fontSize: 14, color: Colors.textSecondary, marginBottom: 2 }}>
-                        {session.user_requests?.specialization || 'Specialization not specified'}
+                        {session.session_type === 'peer_listener' ? '👥 Peer Listener Session' : '🩺 Expert Consultation'}
+                      </Text>
+                      <Text style={{ fontSize: 14, color: Colors.textSecondary, marginBottom: 2 }}>
+                        Expert ID: {session.expert_registration || session.expert_id || 'N/A'}
                       </Text>
                       <Text style={{ fontSize: 14, color: Colors.textSecondary, marginBottom: 2 }}>
                         Date: {new Date(session.session_date).toLocaleDateString()}
