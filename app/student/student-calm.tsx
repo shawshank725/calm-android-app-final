@@ -181,7 +181,7 @@ export default function StudentCalm() {
       // Query Supabase for all booked sessions
       const { data: sessions, error } = await supabase
         .from('book_request')
-        .select('expert_id, session_date, session_time')
+        .select('expert_registration, session_date, session_time')
         .eq('status', 'approved'); // Only approved bookings count as unavailable
 
       if (error) {
@@ -191,7 +191,7 @@ export default function StudentCalm() {
 
       // Create unique session identifiers
       const bookedSlots = sessions?.map(session =>
-        `${session.expert_id}_${session.session_date}_${session.session_time}`
+        `${session.expert_registration}_${session.session_date}_${session.session_time}`
       ) || [];
 
       setBookedSessions(bookedSlots);
@@ -222,7 +222,7 @@ export default function StudentCalm() {
       const { data: sessions, error } = await supabase
         .from('book_request')
         .select('*')
-        .eq('student_reg', regNo)
+        .eq('registration_number', regNo)
         .order('updated_at', { ascending: false });
 
       if (error) {
@@ -323,20 +323,15 @@ export default function StudentCalm() {
 
         // Create session request data for Supabase
         const sessionRequestData = {
-          student_name: studentInfo.name || studentInfo.username || 'Student',
-          student_reg: studentInfo.registration || 'Unknown',
           student_email: studentInfo.email || '',
           student_course: studentInfo.course || '',
           user_name: studentInfo.username || studentInfo.name || 'Student',
           registration_number: studentInfo.registration || 'Unknown',
-          book_title: 'Session Booking',
-          expert_id: selectedPsychologist,
           expert_registration: expert?.registration_number || selectedPsychologist,
           expert_name: expert?.name || 'Unknown Expert',
           session_date: selectedDate,
           session_time: selectedTime,
           status: 'pending',
-          reason: `Session booking request from ${studentInfo.name || studentInfo.username}`,
         };
 
         console.log('Attempting to book session with data:', sessionRequestData);
@@ -345,8 +340,8 @@ export default function StudentCalm() {
         try {
           const { data: activeSessions, error: activeError } = await supabase
             .from('book_request')
-            .select('id,status,expert_id,expert_name,session_date,session_time')
-            .eq('student_reg', studentInfo.registration)
+            .select('id,status,expert_registration,expert_name,session_date,session_time')
+            .eq('registration_number', studentInfo.registration)
             .in('status', ['pending', 'approved']);
 
           if (activeError) {
@@ -480,18 +475,16 @@ export default function StudentCalm() {
 
         // Create session request data for Supabase
         const sessionRequestData = {
-          student_name: studentInfo.name || studentInfo.username || 'Student',
-          student_reg: studentInfo.registration || 'Unknown',
+          user_name: studentInfo.username || studentInfo.name || 'Student',
+          registration_number: studentInfo.registration || 'Unknown',
           student_email: studentInfo.email || '',
           student_course: studentInfo.course || '',
-          expert_id: selectedPeerListener,
-          expert_reg: peerListener?.student_id || selectedPeerListener,
           expert_registration: peerListener?.student_id || selectedPeerListener,
           expert_name: peerListener?.name || 'Unknown Peer Listener',
           session_date: selectedPeerDate,
           session_time: selectedPeerTime,
           status: 'pending',
-          session_type: 'peer_listener', // Add this to distinguish from psychologist sessions
+          session_type: 'peer_listener',
           reason: `Peer listener session booking request from ${studentInfo.name || studentInfo.username}`,
         };
 
@@ -502,7 +495,7 @@ export default function StudentCalm() {
           const { data: activeSessions, error: activeError } = await supabase
             .from('book_request')
             .select('id,status,expert_id,expert_name,session_date,session_time')
-            .eq('student_reg', studentInfo.registration)
+            .eq('registration_number', studentInfo.registration)
             .in('status', ['pending', 'approved']);
 
           if (activeError) {

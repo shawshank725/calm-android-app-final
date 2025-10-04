@@ -21,7 +21,6 @@ import {
   TouchableOpacity,
   View
 } from 'react-native';
-import { uploadFile } from '../../api/Library';
 import { Colors } from '../../constants/Colors';
 import { supabase } from '../../lib/supabase';
 
@@ -1190,6 +1189,42 @@ export default function ExpertHome() {
                       Alert.alert("No file selected.");
                       return;
                     }
+
+                    // Function to upload file to Supabase storage
+                    const uploadFile = async (fileUri: string): Promise<string | null> => {
+                      try {
+                        const fileName = selectedFile?.name || `file_${Date.now()}`;
+                        const fileExt = fileName.split('.').pop();
+                        const filePath = `${expertRegNo}/${Date.now()}.${fileExt}`;
+
+                        // Read file as blob
+                        const response = await fetch(fileUri);
+                        const blob = await response.blob();
+
+                        // Upload to Supabase storage
+                        const { data, error } = await supabase.storage
+                          .from('resources')
+                          .upload(filePath, blob, {
+                            contentType: selectedFile?.mimeType || 'application/octet-stream',
+                            upsert: false
+                          });
+
+                        if (error) {
+                          console.error('Upload error:', error);
+                          throw error;
+                        }
+
+                        // Get public URL
+                        const { data: { publicUrl } } = supabase.storage
+                          .from('resources')
+                          .getPublicUrl(filePath);
+
+                        return publicUrl;
+                      } catch (error) {
+                        console.error('Error uploading file:', error);
+                        return null;
+                      }
+                    };
 
                     try {
                       setUploadLoading(true);

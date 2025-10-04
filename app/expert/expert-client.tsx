@@ -24,11 +24,11 @@ interface SessionRequest {
   studentCourse: string;
   session_date: string;
   session_time: string;
-  status: 'pending' | 'confirmed' | 'rejected' | 'completed';
-  created_at: string;
+  status: 'pending' | 'approved' | 'rejected';
+  updated_at: string;
   notes?: string;
-  psychologistName?: string;
-  expertRegistration?: string;
+  expert_name?: string;
+  expert_registration?: string;
 }
 
 export default function ExpertClientPage() {
@@ -76,7 +76,7 @@ export default function ExpertClientPage() {
     setLoading(true);
     try {
       console.log('Loading session requests from book_request table...');
-      
+
       let regNo = expertRegNo;
       if (!regNo) {
         const storedReg = await AsyncStorage.getItem('currentExpertReg');
@@ -97,12 +97,12 @@ export default function ExpertClientPage() {
         .select('*');
 
       if (regNo) {
-        query = query.or(`expert_registration.eq.${regNo},psychologist_name.eq.${expertName}`);
+        query = query.or(`expert_registration.eq.${regNo},expert_name.eq.${expertName}`);
       } else if (expertName) {
-        query = query.eq('psychologist_name', expertName);
+        query = query.eq('expert_name', expertName);
       }
 
-      const { data: sessionsData, error } = await query.order('created_at', { ascending: false });
+      const { data: sessionsData, error } = await query.order('updated_at', { ascending: false });
 
       if (error) {
         console.error('Error loading session requests:', error);
@@ -112,17 +112,17 @@ export default function ExpertClientPage() {
         console.log('Successfully loaded session requests:', sessionsData.length);
         const transformedSessions: SessionRequest[] = sessionsData.map(session => ({
           id: session.id?.toString() || `session_${Math.random()}`,
-          studentName: session.student_name || 'Unknown Student',
-          studentReg: session.student_registration || 'N/A',
+          studentName: session.user_name || 'Unknown Student',
+          studentReg: session.registration_number || 'N/A',
           studentEmail: session.student_email || '',
           studentCourse: session.student_course || 'N/A',
           session_date: session.session_date || '',
           session_time: session.session_time || '',
           status: session.status || 'pending',
-          created_at: session.created_at || '',
+          updated_at: session.updated_at || session.created_at || '',
           notes: session.notes || '',
-          psychologistName: session.psychologist_name || '',
-          expertRegistration: session.expert_registration || ''
+          expert_name: session.expert_name || '',
+          expert_registration: session.expert_registration || ''
         }));
         setSessionRequests(transformedSessions);
         setFilteredSessions(transformedSessions);
@@ -162,24 +162,27 @@ export default function ExpertClientPage() {
 
   const handleConfirm = async (session: SessionRequest) => {
     Alert.alert(
-      'Confirm Session',
-      `Confirm session with ${session.studentName} on ${formatDate(session.session_date)} at ${session.session_time}?`,
+      'Approve Session',
+      `Approve and book session with ${session.studentName} on ${formatDate(session.session_date)} at ${session.session_time}?`,
       [
         { text: 'Cancel', style: 'cancel' },
         {
-          text: 'Confirm',
+          text: 'Approve',
           onPress: async () => {
             try {
               const { error } = await supabase
                 .from('book_request')
-                .update({ status: 'confirmed' })
+                .update({
+                  status: 'approved',
+                  updated_at: new Date().toISOString()
+                })
                 .eq('id', session.id);
 
               if (error) {
-                console.error('Error confirming session:', error);
-                Alert.alert('Error', 'Failed to confirm session. Please try again.');
+                console.error('Error approving session:', error);
+                Alert.alert('Error', 'Failed to approve session. Please try again.');
               } else {
-                Alert.alert('Success', 'Session confirmed successfully!');
+                Alert.alert('✅ Success', 'Session approved and booked successfully!');
                 await loadPatients();
               }
             } catch (err) {
@@ -205,7 +208,10 @@ export default function ExpertClientPage() {
             try {
               const { error } = await supabase
                 .from('book_request')
-                .update({ status: 'rejected' })
+                .update({
+                  status: 'rejected',
+                  updated_at: new Date().toISOString()
+                })
                 .eq('id', session.id);
 
               if (error) {
@@ -261,9 +267,8 @@ export default function ExpertClientPage() {
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'pending': return '#FFA500';
-      case 'confirmed': return '#4CAF50';
+      case 'approved': return '#4CAF50';
       case 'rejected': return '#F44336';
-      case 'completed': return '#2196F3';
       default: return '#999';
     }
   };
@@ -271,9 +276,8 @@ export default function ExpertClientPage() {
   const getStatusIcon = (status: string) => {
     switch (status) {
       case 'pending': return '⏳';
-      case 'confirmed': return '✅';
+      case 'approved': return '✅';
       case 'rejected': return '❌';
-      case 'completed': return '🎉';
       default: return '📋';
     }
   };
@@ -282,11 +286,11 @@ export default function ExpertClientPage() {
     if (!dateString) return 'Not specified';
     try {
       const date = new Date(dateString);
-      return date.toLocaleDateString('en-US', { 
-        weekday: 'short', 
-        year: 'numeric', 
-        month: 'short', 
-        day: 'numeric' 
+      return date.toLocaleDateString('en-US', {
+        weekday: 'short',
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric'
       });
     } catch {
       return dateString;
@@ -363,31 +367,33 @@ export default function ExpertClientPage() {
       {/* Request Info */}
       <View style={styles.requestInfo}>
         <Text style={styles.requestedAt}>
-          Requested: {formatDate(session.created_at)}
+          Last Updated: {formatDate(session.updated_at)}
         </Text>
       </View>
 
       {/* Action Buttons */}
       <View style={styles.actionButtons}>
-        <TouchableOpacity
-          style={[styles.actionButton, styles.confirmButton, session.status === 'confirmed' && styles.disabledButton]}
-          onPress={() => handleConfirm(session)}
-          disabled={session.status === 'confirmed'}
-          activeOpacity={0.7}
-        >
-          <Ionicons name="checkmark-circle" size={20} color="#fff" />
-          <Text style={styles.actionButtonText}>Confirm</Text>
-        </TouchableOpacity>
+        {session.status === 'pending' && (
+          <>
+            <TouchableOpacity
+              style={[styles.actionButton, styles.confirmButton]}
+              onPress={() => handleConfirm(session)}
+              activeOpacity={0.7}
+            >
+              <Ionicons name="checkmark-circle" size={20} color="#fff" />
+              <Text style={styles.actionButtonText}>Approve</Text>
+            </TouchableOpacity>
 
-        <TouchableOpacity
-          style={[styles.actionButton, styles.rejectButton, session.status === 'rejected' && styles.disabledButton]}
-          onPress={() => handleReject(session)}
-          disabled={session.status === 'rejected'}
-          activeOpacity={0.7}
-        >
-          <Ionicons name="close-circle" size={20} color="#fff" />
-          <Text style={styles.actionButtonText}>Reject</Text>
-        </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.actionButton, styles.rejectButton]}
+              onPress={() => handleReject(session)}
+              activeOpacity={0.7}
+            >
+              <Ionicons name="close-circle" size={20} color="#fff" />
+              <Text style={styles.actionButtonText}>Reject</Text>
+            </TouchableOpacity>
+          </>
+        )}
 
         <TouchableOpacity
           style={[styles.actionButton, styles.deleteButton]}
