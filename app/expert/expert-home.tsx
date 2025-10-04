@@ -1019,11 +1019,11 @@ export default function ExpertHome() {
             </View>
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
               <Text style={{ fontSize: 16, color: Colors.textSecondary }}>Specialization:</Text>
-              <Text style={{ fontSize: 16, fontWeight: 'bold', color: Colors.primary }}>Mental Health Support</Text>
+              <Text style={{ fontSize: 16, fontWeight: 'bold', color: Colors.primary }}>Wellbeing expert</Text>
             </View>
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
               <Text style={{ fontSize: 16, color: Colors.textSecondary }}>Role:</Text>
-              <Text style={{ fontSize: 16, fontWeight: 'bold', color: Colors.primary }}>Mental Health Expert</Text>
+              <Text style={{ fontSize: 16, fontWeight: 'bold', color: Colors.primary }}>Wellbeing Expert</Text>
             </View>
           </View>
 
