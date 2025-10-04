@@ -1,7 +1,7 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { supabase } from "../lib/supabase";
-import * as FileSystem from 'expo-file-system';
 import { decode } from "base64-arraybuffer";
+import * as FileSystem from 'expo-file-system';
+import { supabase } from "../lib/supabase";
 
 export const uploadFile = async (uri: string) => {
     const expertId = await AsyncStorage.getItem("currentExpertId");
@@ -17,11 +17,11 @@ export const uploadFile = async (uri: string) => {
     const ext = fileName?.split(".").pop()?.toLowerCase();
 
     let contentType = "application/octet-stream";
-    
+
     // PDF files
     if (ext === "pdf") {
         contentType = "application/pdf";
-    } 
+    }
     // Image files
     else if (ext === "png") {
         contentType = "image/png";

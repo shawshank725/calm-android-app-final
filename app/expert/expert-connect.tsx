@@ -202,7 +202,7 @@ export default function ExpertConnect() {
       }
 
       const sessionCount = confirmedSessions?.length || 0;
-      
+
       if (confirmedSessions && confirmedSessions.length >= 2) {
         return {
           hasMaxSessions: true,

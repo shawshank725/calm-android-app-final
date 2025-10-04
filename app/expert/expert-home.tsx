@@ -56,12 +56,19 @@ export default function ExpertHome() {
   const [loading, setLoading] = useState(false);
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [uploadLoading, setUploadLoading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [uploadStatus, setUploadStatus] = useState('');
   const [selectedFile, setSelectedFile] = useState<DocumentPicker.DocumentPickerAsset | null>(null);
   const [uploadForm, setUploadForm] = useState({
     title: '',
     description: '',
     category: 'REMEMBER BETTER',
   });
+
+  // Animation values for upload progress
+  const progressAnim = React.useRef(new Animated.Value(0)).current;
+  const pulseAnim = React.useRef(new Animated.Value(1)).current;
+  const spinAnim = React.useRef(new Animated.Value(0)).current;
 
   // Mood tracking states
   const [moodModalVisible, setMoodModalVisible] = useState(false);
@@ -651,10 +658,10 @@ export default function ExpertHome() {
         // Check file size (max 50MB for videos, 10MB for others)
         const isVideo = file.mimeType?.startsWith('video/');
         const maxSize = isVideo ? 50 * 1024 * 1024 : 10 * 1024 * 1024;
-        
+
         if (file.size && file.size > maxSize) {
           Alert.alert(
-            'File Too Large', 
+            'File Too Large',
             `Please select a ${isVideo ? 'video' : 'file'} smaller than ${isVideo ? '50MB' : '10MB'}.`
           );
           return;
@@ -1179,35 +1186,178 @@ export default function ExpertHome() {
                     const uri = selectedFile?.uri;
                     let output_path = "";
 
-                    if (uri) {
-                      try {
-                        const path = await uploadFile(uri);
-                        console.log("OUTPUT PATH - ", path);
-                        output_path = path || "";
-                      } catch (err) {
-                        console.log("Upload failed:", err);
-                      }
-                    } else {
+                    if (!uri) {
                       Alert.alert("No file selected.");
+                      return;
                     }
-                    const resourceDataToBeUploaded = {
-                      resource_title: uploadForm.title,
-                      description: uploadForm.description,
-                      file_url: output_path, // In production, this would be the cloud storage URL after upload
-                      category: uploadForm.category.toUpperCase().replace(" ", "_"),
-                    };
-                    const {data, error} = await supabase.from("library").insert(resourceDataToBeUploaded);
-                    console.log("DATA - ", data);
-                    console.log("ERROR - ", error);
+
+                    try {
+                      setUploadLoading(true);
+                      setUploadProgress(0);
+                      setUploadStatus('Preparing file...');
+
+                      // Start animations
+                      Animated.loop(
+                        Animated.sequence([
+                          Animated.timing(pulseAnim, {
+                            toValue: 1.1,
+                            duration: 800,
+                            easing: Easing.inOut(Easing.ease),
+                            useNativeDriver: true,
+                          }),
+                          Animated.timing(pulseAnim, {
+                            toValue: 1,
+                            duration: 800,
+                            easing: Easing.inOut(Easing.ease),
+                            useNativeDriver: true,
+                          }),
+                        ])
+                      ).start();
+
+                      Animated.loop(
+                        Animated.timing(spinAnim, {
+                          toValue: 1,
+                          duration: 2000,
+                          easing: Easing.linear,
+                          useNativeDriver: true,
+                        })
+                      ).start();
+
+                      // Simulate progress for file preparation
+                      setUploadProgress(10);
+                      Animated.timing(progressAnim, {
+                        toValue: 10,
+                        duration: 300,
+                        useNativeDriver: false,
+                      }).start();
+
+                      await new Promise(resolve => setTimeout(resolve, 300));
+
+                      // Upload file
+                      setUploadStatus('Uploading to cloud...');
+                      setUploadProgress(30);
+                      Animated.timing(progressAnim, {
+                        toValue: 30,
+                        duration: 400,
+                        useNativeDriver: false,
+                      }).start();
+
+                      const path = await uploadFile(uri);
+                      console.log("OUTPUT PATH - ", path);
+                      output_path = path || "";
+
+                      setUploadProgress(70);
+                      Animated.timing(progressAnim, {
+                        toValue: 70,
+                        duration: 400,
+                        useNativeDriver: false,
+                      }).start();
+
+                      // Save to database
+                      setUploadStatus('Saving resource details...');
+                      const resourceDataToBeUploaded = {
+                        resource_title: uploadForm.title,
+                        description: uploadForm.description,
+                        file_url: output_path,
+                        category: uploadForm.category.toUpperCase().replace(" ", "_"),
+                      };
+
+                      setUploadProgress(85);
+                      Animated.timing(progressAnim, {
+                        toValue: 85,
+                        duration: 300,
+                        useNativeDriver: false,
+                      }).start();
+
+                      const {data, error} = await supabase.from("library").insert(resourceDataToBeUploaded);
+                      console.log("DATA - ", data);
+                      console.log("ERROR - ", error);
+
+                      if (error) {
+                        throw error;
+                      }
+
+                      // Complete
+                      setUploadStatus('Upload complete!');
+                      setUploadProgress(100);
+                      Animated.timing(progressAnim, {
+                        toValue: 100,
+                        duration: 300,
+                        useNativeDriver: false,
+                      }).start();
+
+                      await new Promise(resolve => setTimeout(resolve, 500));
+
+                      Alert.alert(
+                        '✅ Upload Successful!',
+                        `${uploadForm.title} has been uploaded successfully and is now available to students.`,
+                        [{
+                          text: 'OK',
+                          onPress: () => {
+                            setShowUploadModal(false);
+                            setSelectedFile(null);
+                            setUploadForm({ title: '', description: '', category: 'REMEMBER BETTER' });
+                            setUploadProgress(0);
+                            setUploadStatus('');
+                            progressAnim.setValue(0);
+                            pulseAnim.setValue(1);
+                            spinAnim.setValue(0);
+                          }
+                        }]
+                      );
+                    } catch (err) {
+                      console.log("Upload failed:", err);
+                      Alert.alert('Upload Failed', 'There was an error uploading the file. Please try again.');
+                      setUploadProgress(0);
+                      setUploadStatus('');
+                      progressAnim.setValue(0);
+                      pulseAnim.setValue(1);
+                      spinAnim.setValue(0);
+                    } finally {
+                      setUploadLoading(false);
+                    }
                   }}
-                disabled={uploadLoading}
+                disabled={uploadLoading || !selectedFile || !uploadForm.title.trim() || !uploadForm.description.trim()}
                 activeOpacity={0.3}
                 delayPressIn={0}
               >
                 {uploadLoading ? (
                   <View style={styles.uploadLoadingContainer}>
-                    <ActivityIndicator size="small" color="#ffffff" />
-                    <Text style={styles.modalUploadButtonText}>Uploading...</Text>
+                    <Animated.View
+                      style={[
+                        styles.spinnerContainer,
+                        {
+                          transform: [
+                            {
+                              rotate: spinAnim.interpolate({
+                                inputRange: [0, 1],
+                                outputRange: ['0deg', '360deg'],
+                              }),
+                            },
+                            { scale: pulseAnim },
+                          ],
+                        },
+                      ]}
+                    >
+                      <Text style={styles.spinnerIcon}>🚀</Text>
+                    </Animated.View>
+                    <View style={styles.uploadProgressInfo}>
+                      <Text style={styles.uploadStatusText}>{uploadStatus}</Text>
+                      <View style={styles.progressBarContainer}>
+                        <Animated.View
+                          style={[
+                            styles.progressBarFill,
+                            {
+                              width: progressAnim.interpolate({
+                                inputRange: [0, 100],
+                                outputRange: ['0%', '100%'],
+                              }),
+                            },
+                          ]}
+                        />
+                      </View>
+                      <Text style={styles.uploadPercentText}>{uploadProgress}%</Text>
+                    </View>
                   </View>
                 ) : (
                   <Text style={styles.modalUploadButtonText}>🚀 Upload Resource</Text>
@@ -2010,9 +2160,45 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
   },
   uploadLoadingContainer: {
-    flexDirection: 'row',
+    flexDirection: 'column',
     alignItems: 'center',
-    gap: 8,
+    gap: 12,
+    width: '100%',
+    paddingVertical: 8,
+  },
+  spinnerContainer: {
+    marginBottom: 8,
+  },
+  spinnerIcon: {
+    fontSize: 32,
+  },
+  uploadProgressInfo: {
+    width: '100%',
+    alignItems: 'center',
+    gap: 6,
+  },
+  uploadStatusText: {
+    color: '#ffffff',
+    fontSize: 14,
+    fontWeight: '600',
+    textAlign: 'center',
+  },
+  progressBarContainer: {
+    width: '90%',
+    height: 6,
+    backgroundColor: 'rgba(255, 255, 255, 0.3)',
+    borderRadius: 3,
+    overflow: 'hidden',
+  },
+  progressBarFill: {
+    height: '100%',
+    backgroundColor: '#ffffff',
+    borderRadius: 3,
+  },
+  uploadPercentText: {
+    color: '#ffffff',
+    fontSize: 12,
+    fontWeight: 'bold',
   },
   selectedFileContainer: {
     backgroundColor: Colors.backgroundLight,

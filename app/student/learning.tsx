@@ -1,25 +1,25 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as FileSystem from 'expo-file-system';
+import * as MediaLibrary from 'expo-media-library';
 import { useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import {
+  ActivityIndicator,
   Alert,
   Dimensions,
   FlatList,
+  Image,
   Linking,
   Modal,
   RefreshControl,
   SafeAreaView,
+  ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
-  View,
-  Image,
-  ActivityIndicator,
-  ScrollView
+  View
 } from 'react-native';
 import { supabase } from '../../lib/supabase';
-import * as FileSystem from 'expo-file-system';
-import * as MediaLibrary from 'expo-media-library';
 
 interface LearningResource {
   id: string;
@@ -39,27 +39,13 @@ export default function LearningSupport() {
   const [filteredResources, setFilteredResources] = useState<LearningResource[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [selectedCategory, setSelectedCategory] = useState<string>('All');
   const [selectedResource, setSelectedResource] = useState<LearningResource | null>(null);
   const [showPreviewModal, setShowPreviewModal] = useState(false);
   const [downloading, setDownloading] = useState(false);
 
-  const categories = ['All', 'REMEMBER BETTER', 'VIDEOS', 'GUIDES'];
-
   useEffect(() => {
     loadStudentInfo();
   }, []);
-
-  const filterResources = useCallback(() => {
-    if (selectedCategory === 'All') {
-      setFilteredResources(resources);
-    } else {
-      // Filter resources by exact category match
-      setFilteredResources(resources.filter(resource =>
-        resource.category && resource.category.toUpperCase() === selectedCategory.toUpperCase()
-      ));
-    }
-  }, [resources, selectedCategory]);
 
   useEffect(() => {
     if (studentInfo.registration) {
@@ -87,10 +73,6 @@ export default function LearningSupport() {
       };
     }
   }, [studentInfo.registration]);
-
-  useEffect(() => {
-    filterResources();
-  }, [resources, selectedCategory, filterResources]);
 
   const loadStudentInfo = async () => {
     try {
@@ -142,6 +124,7 @@ export default function LearningSupport() {
 
         console.log(`Loaded ${mappedResources.length} resources from library table`);
         setResources(mappedResources);
+        setFilteredResources(mappedResources);
       }
     } catch (error) {
       console.error('Error loading library resources:', error);
@@ -186,7 +169,7 @@ export default function LearningSupport() {
                   const { data } = supabase.storage
                     .from('library_pdfs')
                     .getPublicUrl(fileUrl);
-                  
+
                   fileUrl = data.publicUrl;
                 }
 
@@ -245,14 +228,14 @@ export default function LearningSupport() {
         const { data } = supabase.storage
           .from('library_pdfs')
           .getPublicUrl(fileUrl);
-        
+
         fileUrl = data.publicUrl;
       }
 
       // For PDFs, open in browser
       if (resource.file_type === 'application/pdf') {
         await Linking.openURL(fileUrl);
-      } 
+      }
       // For images, show in modal
       else if (resource.file_type.startsWith('image/')) {
         // Update resource with public URL for modal display
@@ -272,25 +255,6 @@ export default function LearningSupport() {
       Alert.alert('Preview Error', 'Unable to preview this file. You can try downloading it instead.');
     }
   };
-
-  const renderCategoryButton = ({ item }: { item: string }) => (
-    <TouchableOpacity
-      style={[
-        styles.categoryButton,
-        selectedCategory === item && styles.selectedCategoryButton
-      ]}
-      onPress={() => setSelectedCategory(item)}
-      activeOpacity={0.3}
-      delayPressIn={0}
-    >
-      <Text style={[
-        styles.categoryButtonText,
-        selectedCategory === item && styles.selectedCategoryButtonText
-      ]}>
-        {item}
-      </Text>
-    </TouchableOpacity>
-  );
 
   const renderResourceItem = ({ item }: { item: LearningResource }) => (
     <View style={styles.resourceCard}>
@@ -348,18 +312,6 @@ export default function LearningSupport() {
         </View>
       </View>
 
-      {/* Categories */}
-      <View style={styles.categoriesContainer}>
-        <FlatList
-          data={categories}
-          renderItem={renderCategoryButton}
-          keyExtractor={(item) => item}
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.categoriesList}
-        />
-      </View>
-
       {/* Resources List */}
       <View style={styles.resourcesContainer}>
         {loading ? (
@@ -371,9 +323,7 @@ export default function LearningSupport() {
             <Text style={styles.emptyIcon}>📭</Text>
             <Text style={styles.emptyTitle}>No Resources Found</Text>
             <Text style={styles.emptyText}>
-              {selectedCategory === 'All'
-                ? 'No learning resources have been uploaded yet. Check back soon as experts regularly upload new materials!'
-                : `No resources found in "${selectedCategory}" category. Try selecting a different category or check back later.`}
+              No learning resources have been uploaded yet. Check back soon as experts regularly upload new materials!
             </Text>
           </View>
         ) : (
