@@ -56,17 +56,17 @@ export default function LearningSupport() {
     if (studentInfo.registration) {
       loadResources();
 
-      // Set up real-time subscription for new uploads
+      // Set up real-time subscription for new uploads to library table
       const subscription = supabase
-        .channel('learning_resources_changes')
+        .channel('library_changes')
         .on('postgres_changes',
           {
             event: '*',
             schema: 'public',
-            table: 'learning_resources'
+            table: 'library'
           },
           (payload) => {
-            console.log('Learning resource change detected:', payload);
+            console.log('Library resource change detected:', payload);
             // Reload resources when changes occur
             loadResources();
           }
@@ -104,28 +104,48 @@ export default function LearningSupport() {
     try {
       setLoading(true);
 
-      // Try to fetch resources from learning_resources table
-      const { data: resources, error } = await supabase
-        .from('learning_resources')
+      // Fetch resources from library table in Supabase
+      const { data: libraryData, error } = await supabase
+        .from('library')
         .select('*')
         .order('created_at', { ascending: false });
 
       if (error) {
         if (error.code === '42P01') {
-          // Table doesn't exist, create it first
-          console.log('Learning resources table not found, creating table...');
-          await createLearningResourcesTable();
+          // Table doesn't exist
+          console.log('Library table not found:', error);
+          Alert.alert('Error', 'Library table does not exist in the database. Please contact your administrator.');
           setResources([]);
         } else {
-          console.error('Error fetching resources:', error);
-          Alert.alert('Error', 'Failed to load learning resources');
+          console.error('Error fetching library resources:', error);
+          Alert.alert('Error', `Failed to load library resources: ${error.message}`);
           setResources([]);
         }
       } else {
-        setResources(resources || []);
+        // Map library data to LearningResource format
+        const mappedResources: LearningResource[] = (libraryData || []).map(item => ({
+          id: item.id || String(Math.random()),
+          title: item.title || item.name || 'Untitled Resource',
+          description: item.description || 'No description available',
+          file_url: item.file_url || item.url || '',
+          file_name: item.file_name || item.name || 'Unknown file',
+          file_type: item.file_type || item.type || 'unknown',
+          uploaded_by: item.uploaded_by || item.author || 'Unknown',
+          uploaded_by_name: item.uploaded_by_name || item.author_name || 'Unknown',
+          uploaded_by_type: item.uploaded_by_type || 'admin',
+          created_at: item.created_at || item.upload_date || new Date().toISOString(),
+          category: item.category || 'Academic Resources',
+          tags: item.tags || [],
+          download_count: item.download_count || 0,
+          file_size: item.file_size || 0
+        }));
+        
+        console.log(`Loaded ${mappedResources.length} resources from library table`);
+        setResources(mappedResources);
       }
     } catch (error) {
-      console.error('Error loading resources:', error);
+      console.error('Error loading library resources:', error);
+      Alert.alert('Error', 'An unexpected error occurred while loading resources');
       setResources([]);
     } finally {
       setLoading(false);
@@ -134,28 +154,28 @@ export default function LearningSupport() {
 
   const createLearningResourcesTable = async () => {
     try {
-      // Note: In a real app, you would create this table through Supabase dashboard
-      // or migration scripts. This is just for demonstration.
-      console.log('Learning resources table should be created through Supabase dashboard');
+      // Note: The 'library' table should be created through Supabase dashboard
+      // or migration scripts.
+      console.log('Library table should be created through Supabase dashboard');
 
-      // The table structure should be:
+      // The library table structure should include:
       // - id (uuid, primary key)
-      // - title (text)
+      // - title or name (text)
       // - description (text)
-      // - file_url (text)
-      // - file_name (text)
-      // - file_type (text)
+      // - file_url or url (text)
+      // - file_name or name (text)
+      // - file_type or type (text)
       // - file_size (bigint)
-      // - uploaded_by (text)
-      // - uploaded_by_name (text)
+      // - uploaded_by or author (text)
+      // - uploaded_by_name or author_name (text)
       // - uploaded_by_type (text)
       // - category (text)
       // - tags (text[])
       // - download_count (int, default 0)
-      // - created_at (timestamp with time zone, default now())
+      // - created_at or upload_date (timestamp with time zone, default now())
 
     } catch (error) {
-      console.error('Error creating table:', error);
+      console.error('Error with library table:', error);
     }
   };
 
