@@ -4,6 +4,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   RefreshControl,
   ScrollView,
   StyleSheet,
@@ -15,14 +16,19 @@ import {
 import { Colors } from '../../constants/Colors';
 import { supabase } from '../../lib/supabase';
 
-interface Patient {
+interface SessionRequest {
   id: string;
-  user_name: string;
-  registration_number: string;
-  course?: string;
-  email?: string;
-  phone?: string;
-  created_at?: string;
+  studentName: string;
+  studentReg: string;
+  studentEmail: string;
+  studentCourse: string;
+  session_date: string;
+  session_time: string;
+  status: 'pending' | 'confirmed' | 'rejected' | 'completed';
+  created_at: string;
+  notes?: string;
+  psychologistName?: string;
+  expertRegistration?: string;
 }
 
 export default function ExpertClientPage() {
@@ -30,16 +36,21 @@ export default function ExpertClientPage() {
   const params = useLocalSearchParams<{ registration?: string }>();
   const [expertName, setExpertName] = useState('');
   const [expertRegNo, setExpertRegNo] = useState('');
-  const [patients, setPatients] = useState<Patient[]>([]);
-  const [filteredPatients, setFilteredPatients] = useState<Patient[]>([]);
+  const [sessionRequests, setSessionRequests] = useState<SessionRequest[]>([]);
+  const [filteredSessions, setFilteredSessions] = useState<SessionRequest[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => {
     loadExpertInfo();
-    loadPatients();
   }, []);
+
+  useEffect(() => {
+    if (expertRegNo || expertName) {
+      loadSessionRequests();
+    }
+  }, [expertRegNo, expertName]);
 
   const loadExpertInfo = async () => {
     try {
@@ -64,61 +75,83 @@ export default function ExpertClientPage() {
   const loadPatients = async () => {
     setLoading(true);
     try {
-      console.log('Loading patients from user_requests table...');
-      const { data: studentsData, error } = await supabase
-        .from('user_requests')
-        .select('*')
-        .in('user_type', ['Student', 'Peer Listener'])
-        .order('user_name');
+      console.log('Loading session requests from book_request table...');
+      
+      let regNo = expertRegNo;
+      if (!regNo) {
+        const storedReg = await AsyncStorage.getItem('currentExpertReg');
+        if (storedReg) regNo = storedReg;
+      }
+
+      if (!regNo && !expertName) {
+        console.log('No expert registration or name found');
+        setSessionRequests([]);
+        setFilteredSessions([]);
+        setLoading(false);
+        return;
+      }
+
+      // Load all session requests for this expert
+      let query = supabase
+        .from('book_request')
+        .select('*');
+
+      if (regNo) {
+        query = query.or(`expert_registration.eq.${regNo},psychologist_name.eq.${expertName}`);
+      } else if (expertName) {
+        query = query.eq('psychologist_name', expertName);
+      }
+
+      const { data: sessionsData, error } = await query.order('created_at', { ascending: false });
 
       if (error) {
-        console.error('Error loading patients from user_requests:', error);
-        const { data: fallbackData, error: fallbackError } = await supabase
-          .from('students')
-          .select('*')
-          .order('user_name');
-
-        if (fallbackError) {
-          console.error('Error loading patients from students table:', fallbackError);
-          setPatients([]);
-          setFilteredPatients([]);
-        }
-      } else if (studentsData) {
-        console.log('Successfully loaded patients from user_requests table:', studentsData.length);
-        const transformedPatients = studentsData.map(student => ({
-          id: student.id?.toString() || student.registration_number || `student_${Math.random()}`,
-          user_name: student.user_name || 'Unknown Student',
-          registration_number: student.registration_number || 'N/A',
-          course: student.course || student.specialization || 'N/A',
-          email: student.email || '',
-          phone: student.phone || '',
-          created_at: student.created_at || ''
+        console.error('Error loading session requests:', error);
+        setSessionRequests([]);
+        setFilteredSessions([]);
+      } else if (sessionsData) {
+        console.log('Successfully loaded session requests:', sessionsData.length);
+        const transformedSessions: SessionRequest[] = sessionsData.map(session => ({
+          id: session.id?.toString() || `session_${Math.random()}`,
+          studentName: session.student_name || 'Unknown Student',
+          studentReg: session.student_registration || 'N/A',
+          studentEmail: session.student_email || '',
+          studentCourse: session.student_course || 'N/A',
+          session_date: session.session_date || '',
+          session_time: session.session_time || '',
+          status: session.status || 'pending',
+          created_at: session.created_at || '',
+          notes: session.notes || '',
+          psychologistName: session.psychologist_name || '',
+          expertRegistration: session.expert_registration || ''
         }));
-        setPatients(transformedPatients);
-        setFilteredPatients(transformedPatients);
+        setSessionRequests(transformedSessions);
+        setFilteredSessions(transformedSessions);
       }
     } catch (error) {
-      console.error('Error loading patients:', error);
-      setPatients([]);
-      setFilteredPatients([]);
+      console.error('Error loading session requests:', error);
+      setSessionRequests([]);
+      setFilteredSessions([]);
     } finally {
       setLoading(false);
     }
   };
 
+  const loadSessionRequests = loadPatients;
+
   const handleSearch = (text: string) => {
     setSearchQuery(text);
     if (!text.trim()) {
-      setFilteredPatients(patients);
+      setFilteredSessions(sessionRequests);
       return;
     }
 
     const q = text.toLowerCase();
-    const filtered = patients.filter(p =>
-      (p.user_name || '').toLowerCase().includes(q) ||
-      (p.registration_number || '').toLowerCase().includes(q)
+    const filtered = sessionRequests.filter(s =>
+      (s.studentName || '').toLowerCase().includes(q) ||
+      (s.studentReg || '').toLowerCase().includes(q) ||
+      (s.status || '').toLowerCase().includes(q)
     );
-    setFilteredPatients(filtered);
+    setFilteredSessions(filtered);
   };
 
   const onRefresh = async () => {
@@ -127,60 +160,243 @@ export default function ExpertClientPage() {
     setRefreshing(false);
   };
 
-  const navigateToChat = (patient: Patient) => {
-    router.push({
-      pathname: './expert-chat',
-      params: {
-        studentId: patient.id,
-        studentName: patient.user_name,
-        studentReg: patient.registration_number,
-        studentEmail: patient.email,
-        studentCourse: patient.course,
-        expertReg: expertRegNo,
-        expertName: expertName
-      }
-    });
+  const handleConfirm = async (session: SessionRequest) => {
+    Alert.alert(
+      'Confirm Session',
+      `Confirm session with ${session.studentName} on ${formatDate(session.session_date)} at ${session.session_time}?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Confirm',
+          onPress: async () => {
+            try {
+              const { error } = await supabase
+                .from('book_request')
+                .update({ status: 'confirmed' })
+                .eq('id', session.id);
+
+              if (error) {
+                console.error('Error confirming session:', error);
+                Alert.alert('Error', 'Failed to confirm session. Please try again.');
+              } else {
+                Alert.alert('Success', 'Session confirmed successfully!');
+                await loadPatients();
+              }
+            } catch (err) {
+              console.error('Error:', err);
+              Alert.alert('Error', 'An error occurred. Please try again.');
+            }
+          }
+        }
+      ]
+    );
   };
 
-  const renderPatientCard = (patient: Patient, index: number) => (
-    <View key={`patient-${patient.id}-${index}`} style={styles.patientCard}>
-      <View style={styles.patientHeader}>
-        <View style={styles.patientNameSection}>
-          <Text style={styles.patientName}>👨‍🎓 {patient.user_name}</Text>
-          <Text style={styles.patientId}>ID: {patient.registration_number}</Text>
+  const handleReject = async (session: SessionRequest) => {
+    Alert.alert(
+      'Reject Session',
+      `Are you sure you want to reject the session with ${session.studentName}?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Reject',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              const { error } = await supabase
+                .from('book_request')
+                .update({ status: 'rejected' })
+                .eq('id', session.id);
+
+              if (error) {
+                console.error('Error rejecting session:', error);
+                Alert.alert('Error', 'Failed to reject session. Please try again.');
+              } else {
+                Alert.alert('Success', 'Session rejected.');
+                await loadPatients();
+              }
+            } catch (err) {
+              console.error('Error:', err);
+              Alert.alert('Error', 'An error occurred. Please try again.');
+            }
+          }
+        }
+      ]
+    );
+  };
+
+  const handleDelete = async (session: SessionRequest) => {
+    Alert.alert(
+      'Delete Session Request',
+      `Are you sure you want to permanently delete this session request from ${session.studentName}?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              const { error } = await supabase
+                .from('book_request')
+                .delete()
+                .eq('id', session.id);
+
+              if (error) {
+                console.error('Error deleting session:', error);
+                Alert.alert('Error', 'Failed to delete session. Please try again.');
+              } else {
+                Alert.alert('Success', 'Session request deleted successfully.');
+                await loadPatients();
+              }
+            } catch (err) {
+              console.error('Error:', err);
+              Alert.alert('Error', 'An error occurred. Please try again.');
+            }
+          }
+        }
+      ]
+    );
+  };
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'pending': return '#FFA500';
+      case 'confirmed': return '#4CAF50';
+      case 'rejected': return '#F44336';
+      case 'completed': return '#2196F3';
+      default: return '#999';
+    }
+  };
+
+  const getStatusIcon = (status: string) => {
+    switch (status) {
+      case 'pending': return '⏳';
+      case 'confirmed': return '✅';
+      case 'rejected': return '❌';
+      case 'completed': return '🎉';
+      default: return '📋';
+    }
+  };
+
+  const formatDate = (dateString: string) => {
+    if (!dateString) return 'Not specified';
+    try {
+      const date = new Date(dateString);
+      return date.toLocaleDateString('en-US', { 
+        weekday: 'short', 
+        year: 'numeric', 
+        month: 'short', 
+        day: 'numeric' 
+      });
+    } catch {
+      return dateString;
+    }
+  };
+
+  const renderSessionCard = (session: SessionRequest, index: number) => (
+    <View key={`session-${session.id}-${index}`} style={styles.sessionCard}>
+      {/* Status Badge */}
+      <View style={styles.sessionHeader}>
+        <View style={[styles.sessionStatusBadge, { backgroundColor: getStatusColor(session.status) + '20' }]}>
+          <Text style={styles.sessionStatusIcon}>{getStatusIcon(session.status)}</Text>
+          <Text style={[styles.sessionStatusText, { color: getStatusColor(session.status) }]}>
+            {session.status.charAt(0).toUpperCase() + session.status.slice(1)}
+          </Text>
         </View>
       </View>
 
-      <View style={styles.patientInfo}>
-        <View style={styles.infoRow}>
-          <Ionicons name="book-outline" size={16} color={Colors.primary} />
-          <Text style={styles.patientDetail}>{patient.course || 'Course not specified'}</Text>
+      {/* Student Information */}
+      <View style={styles.studentSection}>
+        <Text style={styles.sectionLabel}>Student Details</Text>
+        <View style={styles.studentInfo}>
+          <View style={styles.infoRow}>
+            <Ionicons name="person" size={18} color={Colors.primary} />
+            <Text style={styles.studentName}>{session.studentName}</Text>
+          </View>
+          <View style={styles.infoRow}>
+            <Ionicons name="card-outline" size={18} color="#666" />
+            <Text style={styles.infoText}>ID: {session.studentReg}</Text>
+          </View>
+          <View style={styles.infoRow}>
+            <Ionicons name="book-outline" size={18} color="#666" />
+            <Text style={styles.infoText}>{session.studentCourse}</Text>
+          </View>
+          {session.studentEmail && (
+            <View style={styles.infoRow}>
+              <Ionicons name="mail-outline" size={18} color="#666" />
+              <Text style={styles.infoText}>{session.studentEmail}</Text>
+            </View>
+          )}
         </View>
-
-        {patient.email && (
-          <View style={styles.infoRow}>
-            <Ionicons name="mail-outline" size={16} color={Colors.primary} />
-            <Text style={styles.patientDetail}>{patient.email}</Text>
-          </View>
-        )}
-
-        {patient.phone && (
-          <View style={styles.infoRow}>
-            <Ionicons name="call-outline" size={16} color={Colors.primary} />
-            <Text style={styles.patientDetail}>{patient.phone}</Text>
-          </View>
-        )}
       </View>
 
+      {/* Session Details */}
+      <View style={styles.sessionSection}>
+        <Text style={styles.sectionLabel}>Session Details</Text>
+        <View style={styles.sessionDetails}>
+          <View style={styles.detailRow}>
+            <Text style={styles.detailIcon}>📅</Text>
+            <View style={styles.detailContent}>
+              <Text style={styles.detailLabel}>Date</Text>
+              <Text style={styles.detailValue}>{formatDate(session.session_date)}</Text>
+            </View>
+          </View>
+          <View style={styles.detailRow}>
+            <Text style={styles.detailIcon}>⏰</Text>
+            <View style={styles.detailContent}>
+              <Text style={styles.detailLabel}>Time</Text>
+              <Text style={styles.detailValue}>{session.session_time || 'Not specified'}</Text>
+            </View>
+          </View>
+          {session.notes && (
+            <View style={styles.detailRow}>
+              <Text style={styles.detailIcon}>📝</Text>
+              <View style={styles.detailContent}>
+                <Text style={styles.detailLabel}>Notes</Text>
+                <Text style={styles.detailValue}>{session.notes}</Text>
+              </View>
+            </View>
+          )}
+        </View>
+      </View>
+
+      {/* Request Info */}
+      <View style={styles.requestInfo}>
+        <Text style={styles.requestedAt}>
+          Requested: {formatDate(session.created_at)}
+        </Text>
+      </View>
+
+      {/* Action Buttons */}
       <View style={styles.actionButtons}>
         <TouchableOpacity
-          style={styles.chatButton}
-          onPress={() => navigateToChat(patient)}
+          style={[styles.actionButton, styles.confirmButton, session.status === 'confirmed' && styles.disabledButton]}
+          onPress={() => handleConfirm(session)}
+          disabled={session.status === 'confirmed'}
+          activeOpacity={0.7}
         >
-          <Ionicons name="chatbubble-outline" size={18} color="#fff" />
-          <Text style={styles.chatButtonText}>Start Chat</Text>
+          <Ionicons name="checkmark-circle" size={20} color="#fff" />
+          <Text style={styles.actionButtonText}>Confirm</Text>
         </TouchableOpacity>
 
+        <TouchableOpacity
+          style={[styles.actionButton, styles.rejectButton, session.status === 'rejected' && styles.disabledButton]}
+          onPress={() => handleReject(session)}
+          disabled={session.status === 'rejected'}
+          activeOpacity={0.7}
+        >
+          <Ionicons name="close-circle" size={20} color="#fff" />
+          <Text style={styles.actionButtonText}>Reject</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[styles.actionButton, styles.deleteButton]}
+          onPress={() => handleDelete(session)}
+          activeOpacity={0.7}
+        >
+          <Ionicons name="trash" size={20} color="#fff" />
+          <Text style={styles.actionButtonText}>Delete</Text>
+        </TouchableOpacity>
       </View>
     </View>
   );
@@ -196,9 +412,9 @@ export default function ExpertClientPage() {
           <Ionicons name="arrow-back" size={24} color="#fff" />
         </TouchableOpacity>
         <View style={styles.headerContent}>
-          <Text style={styles.headerTitle}>My Clients</Text>
+          <Text style={styles.headerTitle}>Session Requests</Text>
           <Text style={styles.headerSubtitle}>
-            {(searchQuery ? filteredPatients.length : patients.length)} client{(searchQuery ? filteredPatients.length : patients.length) !== 1 ? 's' : ''} {searchQuery ? 'found' : 'registered'}
+            {(searchQuery ? filteredSessions.length : sessionRequests.length)} request{(searchQuery ? filteredSessions.length : sessionRequests.length) !== 1 ? 's' : ''}
           </Text>
         </View>
         <TouchableOpacity
@@ -224,7 +440,7 @@ export default function ExpertClientPage() {
             <Ionicons name="search-outline" size={20} color="#666" style={styles.searchIcon} />
             <TextInput
               style={styles.searchInput}
-              placeholder="Search by name or registration number..."
+              placeholder="Search by student name, ID, or status..."
               placeholderTextColor="#999"
               value={searchQuery}
               onChangeText={handleSearch}
@@ -239,40 +455,40 @@ export default function ExpertClientPage() {
           </View>
         </View>
 
-        {/* Clients List */}
+        {/* Session Requests List */}
         <View style={styles.clientsSection}>
           <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>{searchQuery ? 'Search Results' : 'Active Clients'}</Text>
+            <Text style={styles.sectionTitle}>{searchQuery ? 'Search Results' : 'All Session Requests'}</Text>
             <View style={styles.clientCount}>
-              <Text style={styles.clientCountText}>{searchQuery ? filteredPatients.length : patients.length}</Text>
+              <Text style={styles.clientCountText}>{searchQuery ? filteredSessions.length : sessionRequests.length}</Text>
             </View>
           </View>
 
           {loading ? (
             <View style={styles.loadingContainer}>
               <ActivityIndicator size="large" color={Colors.primary} />
-              <Text style={styles.loadingText}>Loading clients...</Text>
+              <Text style={styles.loadingText}>Loading session requests...</Text>
             </View>
-          ) : patients.length === 0 ? (
+          ) : sessionRequests.length === 0 ? (
             <View style={styles.emptyContainer}>
-              <Ionicons name="people-outline" size={64} color="#ccc" />
-              <Text style={styles.emptyTitle}>No Clients Yet</Text>
+              <Ionicons name="calendar-outline" size={80} color="#ccc" />
+              <Text style={styles.emptyTitle}>No Session Requests</Text>
               <Text style={styles.emptyText}>
-                Students will appear here once they register for consultations.
+                Student session requests will appear here.{'\n'}
                 Pull down to refresh the list.
               </Text>
             </View>
-          ) : (filteredPatients.length === 0 && !!searchQuery) ? (
+          ) : (filteredSessions.length === 0 && !!searchQuery) ? (
             <View style={styles.emptyContainer}>
-              <Ionicons name="search-outline" size={64} color="#ccc" />
+              <Ionicons name="search-outline" size={80} color="#ccc" />
               <Text style={styles.emptyTitle}>No Results Found</Text>
               <Text style={styles.emptyText}>
-                No clients match your search for "{searchQuery}".
-                Try searching by name or registration number.
+                No session requests match your search for "{searchQuery}".{'\n'}
+                Try searching by student name, ID, or status.
               </Text>
             </View>
           ) : (
-            filteredPatients.map((patient, index) => renderPatientCard(patient, index))
+            filteredSessions.map((session, index) => renderSessionCard(session, index))
           )}
         </View>
       </ScrollView>
@@ -601,5 +817,94 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#999',
     fontStyle: 'italic',
+  },
+  studentSection: {
+    marginBottom: 16,
+    paddingBottom: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f0f0f0',
+  },
+  sessionSection: {
+    marginBottom: 16,
+    paddingBottom: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f0f0f0',
+  },
+  sectionLabel: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#999',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginBottom: 12,
+  },
+  studentInfo: {
+    gap: 10,
+  },
+  studentName: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: Colors.primary,
+    flex: 1,
+  },
+  infoText: {
+    fontSize: 15,
+    color: '#666',
+    flex: 1,
+  },
+  detailRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 12,
+  },
+  detailIcon: {
+    fontSize: 20,
+  },
+  detailContent: {
+    flex: 1,
+  },
+  detailLabel: {
+    fontSize: 13,
+    color: '#999',
+    marginBottom: 2,
+  },
+  detailValue: {
+    fontSize: 15,
+    color: '#333',
+    fontWeight: '500',
+  },
+  requestInfo: {
+    marginBottom: 16,
+  },
+  requestedAt: {
+    fontSize: 13,
+    color: '#999',
+    fontStyle: 'italic',
+  },
+  actionButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    borderRadius: 10,
+    gap: 6,
+  },
+  confirmButton: {
+    backgroundColor: '#4CAF50',
+  },
+  rejectButton: {
+    backgroundColor: '#F44336',
+  },
+  deleteButton: {
+    backgroundColor: '#9E9E9E',
+  },
+  disabledButton: {
+    opacity: 0.5,
+  },
+  actionButtonText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '600',
   },
 });

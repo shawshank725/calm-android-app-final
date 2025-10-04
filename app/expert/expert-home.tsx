@@ -980,7 +980,7 @@ export default function ExpertHome() {
                 onPress={() => router.push('./expert-client')}
               >
                 <Text style={styles.buttonIcon}>👥</Text>
-                <Text style={styles.matrixButtonText}>View Clients</Text>
+                <Text style={styles.matrixButtonText}>My Clients</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={styles.matrixButton}
