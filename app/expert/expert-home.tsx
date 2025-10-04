@@ -60,7 +60,7 @@ export default function ExpertHome() {
   const [uploadForm, setUploadForm] = useState({
     title: '',
     description: '',
-    category: 'Academic Resources',
+    category: 'BETTER',
   });
 
   // Mood tracking states
@@ -88,11 +88,9 @@ export default function ExpertHome() {
   const [sendingNotification, setSendingNotification] = useState(false);
 
   const categories = [
-    'Academic Resources',
-    'Study Guides',
-    'Mental Health',
-    'Career Support',
-    'Life Skills'
+    'BETTER',
+    'VIDEOS',
+    'GUIDES'
   ];
 
   // Animated bubble background (home tab only)
@@ -743,7 +741,7 @@ export default function ExpertHome() {
 
   const openUploadModal = () => {
     setSelectedFile(null);
-    setUploadForm({ title: '', description: '', category: 'Academic Resources' });
+    setUploadForm({ title: '', description: '', category: 'BETTER' });
     setShowUploadModal(true);
   };
 
