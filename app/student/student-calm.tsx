@@ -39,6 +39,10 @@ export default function StudentCalm() {
   // Add this state for tracking booked sessions
   const [bookedSessions, setBookedSessions] = useState<string[]>([]);
 
+  // Add state for session history
+  const [sessionHistory, setSessionHistory] = useState<any[]>([]);
+  const [loadingHistory, setLoadingHistory] = useState(false);
+
   // Load student info on component mount
   useEffect(() => {
     const loadStudentInfo = async () => {
@@ -71,6 +75,7 @@ export default function StudentCalm() {
 
     loadStudentInfo();
     loadBookedSessions(); // Load booked sessions when component mounts
+    loadSessionHistory(); // Load session history when component mounts
   }, [params.registration]);
 
   // Load expert data from user_requests table
@@ -192,6 +197,77 @@ export default function StudentCalm() {
       setBookedSessions(bookedSlots);
     } catch (error) {
       console.error('Error in loadBookedSessions:', error);
+    }
+  };
+
+  // Load session history for current user
+  const loadSessionHistory = async () => {
+    try {
+      setLoadingHistory(true);
+      let regNo = studentInfo.registration;
+      if (!regNo) {
+        const storedReg = await AsyncStorage.getItem('currentStudentReg');
+        if (storedReg) regNo = storedReg;
+      }
+
+      if (!regNo) {
+        console.log('No registration number found for session history');
+        setLoadingHistory(false);
+        return;
+      }
+
+      console.log('Loading session history for:', regNo);
+
+      // Query Supabase for user's booked sessions
+      const { data: sessions, error } = await supabase
+        .from('book_request')
+        .select(`
+          id,
+          expert_id,
+          session_date,
+          session_time,
+          status,
+          book_title,
+          created_at,
+          user_requests!inner(user_name, specialization, user_type)
+        `)
+        .eq('student_reg', regNo)
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        console.error('Error loading session history:', error);
+        setSessionHistory([]);
+      } else {
+        console.log('Session history loaded:', sessions);
+        setSessionHistory(sessions || []);
+      }
+    } catch (error) {
+      console.error('Error in loadSessionHistory:', error);
+      setSessionHistory([]);
+    } finally {
+      setLoadingHistory(false);
+    }
+  };
+
+  // Delete a session from history
+  const deleteSession = async (sessionId: number) => {
+    try {
+      const { error } = await supabase
+        .from('book_request')
+        .delete()
+        .eq('id', sessionId);
+
+      if (error) {
+        console.error('Error deleting session:', error);
+        Alert.alert('Error', 'Failed to delete session. Please try again.');
+      } else {
+        Alert.alert('Success', 'Session deleted successfully.');
+        // Reload session history to reflect changes
+        loadSessionHistory();
+      }
+    } catch (error) {
+      console.error('Error in deleteSession:', error);
+      Alert.alert('Error', 'Failed to delete session. Please try again.');
     }
   };
 
@@ -355,6 +431,7 @@ export default function StudentCalm() {
 
         // After successful booking, refresh the booked sessions
         await loadBookedSessions();
+        await loadSessionHistory();
 
         // Reset selections and close modal
         setSelectedDate(null);
@@ -512,6 +589,7 @@ export default function StudentCalm() {
 
         // After successful booking, refresh the booked sessions
         await loadBookedSessions();
+        await loadSessionHistory();
 
         // Reset selections and close modal
         setSelectedPeerDate(null);
@@ -642,35 +720,90 @@ export default function StudentCalm() {
           onPress={() => router.back()}
           style={styles.backButton}
         >
-          <Text style={styles.backButtonText}>← Back</Text>
+          <Text style={styles.backButtonText}> ← </Text>
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Student Calm Space</Text>
       </View>
 
       <ScrollView contentContainerStyle={styles.contentContainer}>
         {/* Professional Support Card */}
-        <View style={{ backgroundColor: Colors.white, borderRadius: 25, padding: 25, margin: 20, elevation: 8, shadowColor: Colors.shadow, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8, borderWidth: 2, borderColor: Colors.primary }}>
+        <View style={{ backgroundColor: Colors.white, borderRadius: 25, padding: 25, margin: 20, elevation: 8, shadowColor: Colors.shadow, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 1.3, shadowRadius: 50 }}>
           <Text style={{ fontSize: 24, fontWeight: 'bold', color: Colors.primary, textAlign: 'center', marginBottom: 8 }}>Professional Support</Text>
-          <Text style={{ fontSize: 16, color: Colors.textSecondary, textAlign: 'center', marginBottom: 20, fontStyle: 'italic' }}>Connect with mental health professionals</Text>
+          <Text style={{ fontSize: 16, color: Colors.textSecondary, textAlign: 'center', marginBottom: 20, fontStyle: 'italic' }}>Connect with health professionals</Text>
 
           {/* Connection Buttons in 2x1 layout */}
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', width: '100%', marginTop: 10, paddingHorizontal: 10 }}>
             <TouchableOpacity
-              style={{ width: '45%', height: 120, borderRadius: 25, justifyContent: 'center', alignItems: 'center', elevation: 4, shadowColor: Colors.shadow, shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.18, shadowRadius: 5, marginHorizontal: 10, marginVertical: 8, backgroundColor: Colors.white, borderWidth: 2, borderColor: Colors.primary }}
+              style={{ width: '45%', height: 100, borderRadius: 25, justifyContent: 'center', alignItems: 'center', elevation: 4, shadowColor: Colors.shadow, shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.18, shadowRadius: 5, marginHorizontal: 10, marginVertical: 8, backgroundColor: Colors.white }}
               onPress={() => setShowPsychologistModal(true)}
             >
-              <Image source={require('../../assets/images/psychologist.png')} style={{ width: 50, height: 50, marginBottom: 8, resizeMode: 'contain' }} />
+              <Image source={require('../../assets/images/connect.png')} style={{ width: 50, height: 50, marginBottom: 8, resizeMode: 'contain' }} />
               <Text style={{ color: Colors.primary, fontSize: 14, fontWeight: 'bold', textAlign: 'center' }}>Connect with{'\n'}Psychologist</Text>
             </TouchableOpacity>
 
             <TouchableOpacity
-              style={{ width: '45%', height: 120, borderRadius: 25, justifyContent: 'center', alignItems: 'center', elevation: 4, shadowColor: Colors.shadow, shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.18, shadowRadius: 5, marginHorizontal: 10, marginVertical: 8, backgroundColor: Colors.white, borderWidth: 2, borderColor: Colors.primary }}
+              style={{ width: '45%', height: 100, borderRadius: 25, justifyContent: 'center', alignItems: 'center', elevation: 4, shadowColor: Colors.shadow, shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.18, shadowRadius: 5, marginHorizontal: 10, marginVertical: 8, backgroundColor: Colors.white }}
               onPress={() => setShowPeerListenerModal(true)}
             >
-              <Image source={require('../../assets/images/peer listener.png')} style={{ width: 50, height: 50, marginBottom: 8, resizeMode: 'contain' }} />
+              <Image source={require('../../assets/images/connect.png')} style={{ width: 50, height: 50, marginBottom: 8, resizeMode: 'contain' }} />
               <Text style={{ color: Colors.primary, fontSize: 14, fontWeight: 'bold', textAlign: 'center' }}>Connect with{'\n'}Peer Listener</Text>
             </TouchableOpacity>
           </View>
+        </View>
+
+        {/* Session History Card */}
+        <View style={{ backgroundColor: Colors.white, borderRadius: 25, padding: 25, margin: 20, elevation: 8, shadowColor: Colors.shadow, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 1.3, shadowRadius: 50 }}>
+          <Text style={{ fontSize: 24, fontWeight: 'bold', color: Colors.primary, textAlign: 'center', marginBottom: 8 }}>Session History</Text>
+          <Text style={{ fontSize: 16, color: Colors.textSecondary, textAlign: 'center', marginBottom: 20, fontStyle: 'italic' }}>Your booked sessions</Text>
+
+          {loadingHistory ? (
+            <Text style={{ textAlign: 'center', color: Colors.textSecondary, fontSize: 16 }}>Loading session history...</Text>
+          ) : sessionHistory.length === 0 ? (
+            <Text style={{ textAlign: 'center', color: Colors.textSecondary, fontSize: 16 }}>No sessions booked yet.</Text>
+          ) : (
+            <ScrollView style={{ maxHeight: 300 }}>
+              {sessionHistory.map((session) => (
+                <View key={session.id} style={{ backgroundColor: Colors.backgroundLight, borderRadius: 15, padding: 15, marginBottom: 10, elevation: 2, shadowColor: Colors.shadow, shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 3 }}>
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ fontSize: 16, fontWeight: 'bold', color: Colors.primary, marginBottom: 4 }}>
+                        {session.user_requests?.user_name || 'Unknown Expert'}
+                      </Text>
+                      <Text style={{ fontSize: 14, color: Colors.textSecondary, marginBottom: 2 }}>
+                        {session.user_requests?.specialization || 'Specialization not specified'}
+                      </Text>
+                      <Text style={{ fontSize: 14, color: Colors.textSecondary, marginBottom: 2 }}>
+                        Date: {new Date(session.session_date).toLocaleDateString()}
+                      </Text>
+                      <Text style={{ fontSize: 14, color: Colors.textSecondary, marginBottom: 4 }}>
+                        Time: {session.session_time}
+                      </Text>
+                      <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                        <Text style={{ fontSize: 12, color: session.status === 'approved' ? Colors.success : session.status === 'pending' ? Colors.warning : Colors.error, fontWeight: 'bold' }}>
+                          Status: {session.status?.toUpperCase() || 'UNKNOWN'}
+                        </Text>
+                      </View>
+                    </View>
+                    <TouchableOpacity
+                      style={{ backgroundColor: Colors.error, borderRadius: 20, paddingHorizontal: 12, paddingVertical: 6, marginLeft: 10 }}
+                      onPress={() => {
+                        Alert.alert(
+                          'Delete Session',
+                          'Are you sure you want to delete this session?',
+                          [
+                            { text: 'Cancel', style: 'cancel' },
+                            { text: 'Delete', style: 'destructive', onPress: () => deleteSession(session.id) }
+                          ]
+                        );
+                      }}
+                    >
+                      <Text style={{ color: Colors.white, fontSize: 12, fontWeight: 'bold' }}>Delete</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              ))}
+            </ScrollView>
+          )}
         </View>
       </ScrollView>
 
@@ -970,25 +1103,6 @@ export default function StudentCalm() {
               {selectedPeerListener && selectedPeerDate && (
                 <>
                   <Text style={styles.sectionTitle}>Available Time Slots</Text>
-
-                  {/* Legend */}
-                  <View style={styles.legendContainer}>
-                    <Text style={styles.legendTitle}>Status Legend:</Text>
-                    <View style={styles.legendRow}>
-                      <View style={styles.legendItem}>
-                        <View style={[styles.statusDot, { backgroundColor: '#4caf50' }]} />
-                        <Text style={styles.legendText}>Available</Text>
-                      </View>
-                      <View style={styles.legendItem}>
-                        <View style={[styles.statusDot, { backgroundColor: '#2196f3' }]} />
-                        <Text style={styles.legendText}>Selected</Text>
-                      </View>
-                      <View style={styles.legendItem}>
-                        <View style={[styles.statusDot, styles.bookedStatusDot, { backgroundColor: '#f44336' }]} />
-                        <Text style={styles.legendText}>Booked</Text>
-                      </View>
-                    </View>
-                  </View>
 
                   <View style={styles.timeSlotsContainer}>
                     {timeSlots.map((time) => {

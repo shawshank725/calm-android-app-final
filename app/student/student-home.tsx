@@ -80,6 +80,8 @@ export default function StudentHome() {
   const [currentYear, setCurrentYear] = useState(new Date().getFullYear());
   const [selectedProfilePic, setSelectedProfilePic] = useState(0);
   const [showToolkitPage, setShowToolkitPage] = useState(false);
+  const [showToolkitPopup, setShowToolkitPopup] = useState(false);
+  const [selectedToolkitItem, setSelectedToolkitItem] = useState<{name: string, description: string, route: string} | null>(null);
   const [dailyMoodEntries, setDailyMoodEntries] = useState<{[key: string]: {emoji: string, label: string, time: string}[]}>({});
   const [detailedMoodEntries, setDetailedMoodEntries] = useState<{date: string, emoji: string, label: string, time: string, notes?: string}[]>([]);
 
@@ -1111,7 +1113,7 @@ export default function StudentHome() {
             style={{ width: 40, height: 40, borderRadius: 22, backgroundColor: Colors.white, justifyContent: 'center', alignItems: 'center', elevation: 8, shadowColor: Colors.shadow, shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.22, shadowRadius: 5, borderWidth: 2, borderColor: Colors.primary }}
             onPress={() => router.push('./ai')}
           >
-            <Text style={{ fontSize: 22, color: Colors.primary }}>🤖</Text>
+            <Image source={require('../../assets/images/chat bot.png')} style={{ width: 30, height: 30, resizeMode: 'contain' }} />
           </TouchableOpacity>
         </View>
       )}
@@ -1167,60 +1169,142 @@ export default function StudentHome() {
       )}
 
       {/* Toolkit Page Modal */}
-      <Modal visible={showToolkitPage} animationType="slide" presentationStyle="fullScreen">
-        <View style={{ flex: 1, backgroundColor: Colors.background, paddingHorizontal: 16, paddingTop: 60, alignItems: 'center', width: '100%' }}>
-          {/* Header */}
-          <View style={{ flexDirection: 'row', alignItems: 'center', width: '100%', marginBottom: 20, backgroundColor: Colors.white, borderRadius: 15, padding: 15, borderWidth: 1, borderColor: Colors.border }}>
-            <TouchableOpacity
-              onPress={() => setShowToolkitPage(false)}
-              style={{ paddingVertical: 8, paddingHorizontal: 16, backgroundColor: Colors.white, borderRadius: 15, marginRight: 15, borderWidth: 2, borderColor: Colors.primary, shadowColor: Colors.shadow, shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.15, shadowRadius: 3, elevation: 2 }}
-            >
-              <Text style={{ color: Colors.primary, fontSize: 10, fontWeight: 'bold' }}>← Back</Text>
-            </TouchableOpacity>
-            <Text style={{ color: Colors.text, fontSize: 15, fontWeight: 'bold', flex: 1, textAlign: 'center', marginRight: 60 }}>Self-help Toolkit</Text>
-          </View>
+      <Modal visible={showToolkitPage} animationType="slide" transparent={true}>
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.7)' }}>
+          <View style={{ backgroundColor: Colors.background, borderRadius: 25, paddingHorizontal: 20, paddingTop: 20, paddingBottom: 30, width: '90%', maxWidth: 400, maxHeight: '80%', shadowColor: Colors.shadow, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 10, borderWidth: 2, borderColor: Colors.primary }}>
+            {/* Header */}
+            <View style={{ flexDirection: 'row', alignItems: 'center', width: '100%', marginBottom: 20, backgroundColor: Colors.white, borderRadius: 15, padding: 15, borderWidth: 1, borderColor: Colors.border }}>
+              <TouchableOpacity
+                onPress={() => setShowToolkitPage(false)}
+                style={{ paddingVertical: 8, paddingHorizontal: 16, backgroundColor: Colors.white, borderRadius: 15, marginRight: 15, borderWidth: 2, borderColor: Colors.primary, shadowColor: Colors.shadow, shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.15, shadowRadius: 3, elevation: 2 }}
+              >
+                <Text style={{ color: Colors.primary, fontSize: 15, fontWeight: 'bold' }}>← Back</Text>
+              </TouchableOpacity>
+              <Text style={{ color: Colors.text, fontSize: 15, fontWeight: 'bold', flex: 1, textAlign: 'center', marginRight: 60 }}>Self-help Toolkit</Text>
+            </View>
 
-          <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', marginTop: 50, paddingHorizontal: 20 }}>
-            {/* 2x3 Grid Layout for Toolkit */}
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', width: '100%', marginTop: 10, paddingHorizontal: 10 }}>
-              <TouchableOpacity
-                style={{ width: '45%', height: 120, borderRadius: 25, justifyContent: 'center', alignItems: 'center', elevation: 4, shadowColor: Colors.shadow, shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.18, shadowRadius: 5, marginHorizontal: 10, marginVertical: 8, backgroundColor: Colors.white, borderWidth: 2, borderColor: Colors.primary }}
-                onPress={() => router.push(`./toolkit-grounding?registration=${studentRegNo}`)}
-              >
-                <Text style={{ fontSize: 32, marginBottom: 8 }}>🌱</Text>
-                <Text style={{ color: Colors.primary, fontSize: 14, fontWeight: 'bold', textAlign: 'center' }}>Grounding Exercises</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={{ width: '45%', height: 120, borderRadius: 25, justifyContent: 'center', alignItems: 'center', elevation: 4, shadowColor: Colors.shadow, shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.18, shadowRadius: 5, marginHorizontal: 10, marginVertical: 8, backgroundColor: Colors.white, borderWidth: 2, borderColor: Colors.primary }}
-                onPress={() => router.push(`./toolkit-breathing?registration=${studentRegNo}`)}
-              >
-                <Text style={{ fontSize: 32, marginBottom: 8 }}>🧘‍♂️</Text>
-                <Text style={{ color: Colors.primary, fontSize: 14, fontWeight: 'bold', textAlign: 'center' }}>Breathing Exercises</Text>
-              </TouchableOpacity>
+            <View style={{ justifyContent: 'center', alignItems: 'center', paddingHorizontal: 10 }}>
+              {/* 2x3 Grid Layout for Toolkit */}
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', width: '100%', marginTop: 10, paddingHorizontal: 5 }}>
+                <TouchableOpacity
+                  style={{ width: '45%', height: 100, borderRadius: 20, justifyContent: 'center', alignItems: 'center', elevation: 4, shadowColor: Colors.shadow, shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.18, shadowRadius: 5, marginHorizontal: 5, marginVertical: 6, backgroundColor: Colors.white, borderWidth: 2, borderColor: Colors.primary }}
+                  onPress={() => {
+                    setSelectedToolkitItem({
+                      name: 'Grounding Exercises',
+                      description: 'Grounding exercises help you stay present and connected to the current moment. These techniques can reduce anxiety and help you feel more centered.',
+                      route: `./toolkit-grounding?registration=${studentRegNo}`
+                    });
+                    setShowToolkitPopup(true);
+                  }}
+                >
+                  <Image source={require('../../assets/images/grounding.png')} style={{ width: 50, height: 50, marginBottom: 6, resizeMode: 'contain' }} />
+                  <Text style={{ color: Colors.primary, fontSize: 12, fontWeight: 'bold', textAlign: 'center' }}>Grounding Exercises</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={{ width: '45%', height: 100, borderRadius: 20, justifyContent: 'center', alignItems: 'center', elevation: 4, shadowColor: Colors.shadow, shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.18, shadowRadius: 5, marginHorizontal: 5, marginVertical: 6, backgroundColor: Colors.white, borderWidth: 2, borderColor: Colors.primary }}
+                  onPress={() => {
+                    setSelectedToolkitItem({
+                      name: 'Breathing Exercises',
+                      description: 'Breathing exercises help calm your mind and body. Practice deep, mindful breathing to reduce stress and improve focus.',
+                      route: `./toolkit-breathing?registration=${studentRegNo}`
+                    });
+                    setShowToolkitPopup(true);
+                  }}
+                >
+                  <Image source={require('../../assets/images/breathing.png')} style={{ width: 50, height: 50, marginBottom: 6, resizeMode: 'contain' }} />
+                  <Text style={{ color: Colors.primary, fontSize: 12, fontWeight: 'bold', textAlign: 'center' }}>Breathing Exercises</Text>
+                </TouchableOpacity>
+              </View>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', width: '100%', marginTop: 10, paddingHorizontal: 5 }}>
+                <TouchableOpacity
+                  style={{ width: '45%', height: 100, borderRadius: 20, justifyContent: 'center', alignItems: 'center', elevation: 4, shadowColor: Colors.shadow, shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.18, shadowRadius: 5, marginHorizontal: 5, marginVertical: 6, backgroundColor: Colors.white, borderWidth: 2, borderColor: Colors.primary }}
+                  onPress={() => {
+                    setSelectedToolkitItem({
+                      name: 'Color Mandala',
+                      description: 'Coloring mandalas is a meditative practice that helps reduce stress and promotes mindfulness through creative expression.',
+                      route: `./toolkit-mandalas?registration=${studentRegNo}`
+                    });
+                    setShowToolkitPopup(true);
+                  }}
+                >
+                  <Image source={require('../../assets/images/mandala.png')} style={{ width: 50, height: 50, marginBottom: 6, resizeMode: 'contain' }} />
+                  <Text style={{ color: Colors.primary, fontSize: 12, fontWeight: 'bold', textAlign: 'center' }}>Color Mandala </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={{ width: '45%', height: 100, borderRadius: 20, justifyContent: 'center', alignItems: 'center', elevation: 4, shadowColor: Colors.shadow, shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.18, shadowRadius: 5, marginHorizontal: 5, marginVertical: 6, backgroundColor: Colors.white, borderWidth: 2, borderColor: Colors.primary }}
+                  onPress={() => {
+                    setSelectedToolkitItem({
+                      name: 'Movement Exercise',
+                      description: 'Movement exercises combine physical activity with mindfulness to help release tension and improve your mental well-being.',
+                      route: `./toolkit-movement?registration=${studentRegNo}`
+                    });
+                    setShowToolkitPopup(true);
+                  }}
+                >
+                  <Image source={require('../../assets/images/movement.png')} style={{ width: 50, height: 50, marginBottom: 6, resizeMode: 'contain' }} />
+                  <Text style={{ color: Colors.primary, fontSize: 12, fontWeight: 'bold', textAlign: 'center' }}>Movement Exercise</Text>
+                </TouchableOpacity>
+              </View>
+              <View style={{ flexDirection: 'row', justifyContent: 'center', width: '100%', marginTop: 10, paddingHorizontal: 5 }}>
+                <TouchableOpacity
+                  style={{ width: '45%', height: 100, borderRadius: 20, justifyContent: 'center', alignItems: 'center', elevation: 4, shadowColor: Colors.shadow, shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.18, shadowRadius: 5, marginHorizontal: 5, marginVertical: 6, backgroundColor: Colors.white, borderWidth: 2, borderColor: Colors.primary }}
+                  onPress={() => {
+                    setSelectedToolkitItem({
+                      name: 'Focus & Concentration',
+                      description: 'Focus exercises help improve your concentration and mental clarity. Practice techniques to enhance attention and productivity.',
+                      route: `./toolkit-focus?registration=${studentRegNo}`
+                    });
+                    setShowToolkitPopup(true);
+                  }}
+                >
+                  <Image source={require('../../assets/images/focus.png')} style={{ width: 50, height: 50, marginBottom: 6, resizeMode: 'contain' }} />
+                  <Text style={{ color: Colors.primary, fontSize: 12, fontWeight: 'bold', textAlign: 'center' }}>Focus & Concentration</Text>
+                </TouchableOpacity>
+              </View>
             </View>
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', width: '100%', marginTop: 10, paddingHorizontal: 10 }}>
-              <TouchableOpacity
-                style={{ width: '45%', height: 120, borderRadius: 25, justifyContent: 'center', alignItems: 'center', elevation: 4, shadowColor: Colors.shadow, shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.18, shadowRadius: 5, marginHorizontal: 10, marginVertical: 8, backgroundColor: Colors.white, borderWidth: 2, borderColor: Colors.primary }}
-                onPress={() => router.push(`./toolkit-mandalas?registration=${studentRegNo}`)}
-              >
-                <Text style={{ fontSize: 32, marginBottom: 8 }}>🎨</Text>
-                <Text style={{ color: Colors.primary, fontSize: 14, fontWeight: 'bold', textAlign: 'center' }}>Color Mandala </Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={{ width: '45%', height: 120, borderRadius: 25, justifyContent: 'center', alignItems: 'center', elevation: 4, shadowColor: Colors.shadow, shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.18, shadowRadius: 5, marginHorizontal: 10, marginVertical: 8, backgroundColor: Colors.white, borderWidth: 2, borderColor: Colors.primary }}
-                onPress={() => router.push(`./toolkit-movement?registration=${studentRegNo}`)}
-              >
-                <Text style={{ fontSize: 32, marginBottom: 8 }}>🏃</Text>
-                <Text style={{ color: Colors.primary, fontSize: 14, fontWeight: 'bold', textAlign: 'center' }}>Movement Exercise</Text>
-              </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Toolkit Information Popup */}
+      <Modal visible={showToolkitPopup} animationType="fade" transparent={true}>
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.6)' }}>
+          <View style={{ backgroundColor: Colors.white, borderRadius: 20, padding: 25, width: '85%', maxWidth: 400, shadowColor: Colors.shadow, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 10, borderWidth: 2, borderColor: Colors.primary }}>
+            {/* Header */}
+            <View style={{ alignItems: 'center', marginBottom: 20 }}>
+              <Text style={{ fontSize: 22, fontWeight: 'bold', color: Colors.text, textAlign: 'center', marginBottom: 10 }}>
+                {selectedToolkitItem?.name}
+              </Text>
+              <View style={{ height: 2, width: 60, backgroundColor: Colors.primary, borderRadius: 1 }} />
             </View>
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', width: '100%', marginTop: 10, paddingHorizontal: 10 }}>
+
+            {/* Description */}
+            <Text style={{ fontSize: 16, color: Colors.textSecondary, textAlign: 'center', lineHeight: 24, marginBottom: 25 }}>
+              {selectedToolkitItem?.description}
+            </Text>
+
+            {/* Action Buttons */}
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
               <TouchableOpacity
-                style={{ width: '45%', height: 120, borderRadius: 25, justifyContent: 'center', alignItems: 'center', elevation: 4, shadowColor: Colors.shadow, shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.18, shadowRadius: 5, marginHorizontal: 10, marginVertical: 8, backgroundColor: Colors.white, borderWidth: 2, borderColor: Colors.primary }}
-                onPress={() => router.push(`./toolkit-focus?registration=${studentRegNo}`)}
+                style={{ flex: 1, backgroundColor: Colors.backgroundLight, borderRadius: 15, paddingVertical: 12, marginRight: 10, borderWidth: 1, borderColor: Colors.border }}
+                onPress={() => {
+                  setShowToolkitPopup(false);
+                  setSelectedToolkitItem(null);
+                }}
               >
-                <Text style={{ fontSize: 32, marginBottom: 8 }}>🎯</Text>
-                <Text style={{ color: Colors.primary, fontSize: 14, fontWeight: 'bold', textAlign: 'center' }}>Focus & Concentration</Text>
+                <Text style={{ color: Colors.textSecondary, fontSize: 16, fontWeight: 'bold', textAlign: 'center' }}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={{ flex: 1, backgroundColor: Colors.primary, borderRadius: 15, paddingVertical: 12, marginLeft: 10 }}
+                onPress={() => {
+                  setShowToolkitPopup(false);
+                  if (selectedToolkitItem) {
+                    router.push(selectedToolkitItem.route as any);
+                  }
+                  setSelectedToolkitItem(null);
+                }}
+              >
+                <Text style={{ color: Colors.white, fontSize: 16, fontWeight: 'bold', textAlign: 'center' }}>Start Exercise</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -1355,25 +1439,31 @@ export default function StudentHome() {
               <View style={{ flexDirection: 'row', justifyContent: 'center', width: '100%', marginTop: 10, paddingHorizontal: 10 }}>
                 <TouchableOpacity style={{ width: '45%', height: 120, borderRadius: 25, justifyContent: 'center', alignItems: 'center', elevation: 4, shadowColor: Colors.shadow, shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.18, shadowRadius: 5, marginHorizontal: 10, marginVertical: 8, backgroundColor: Colors.white, borderWidth: 2, borderColor: Colors.primary }} onPress={() => setShowToolkitPage(true)}>
                   <Image source={require('../../assets/images/self help tool kit.png')} style={{ width: 60, height: 60, marginBottom: 8 }} />
+                  <Text style={{ color: Colors.primary, fontSize: 12, fontWeight: 'bold', textAlign: 'center' }}>Self Help Toolkit</Text>
                 </TouchableOpacity>
                 <TouchableOpacity style={{ width: '45%', height: 120, borderRadius: 25, justifyContent: 'center', alignItems: 'center', elevation: 4, shadowColor: Colors.shadow, shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.18, shadowRadius: 5, marginHorizontal: 10, marginVertical: 8, backgroundColor: Colors.white, borderWidth: 2, borderColor: Colors.primary }} onPress={() => router.push('./student-calm')}>
                   <Image source={require('../../assets/images/calmcampanion.png')} style={{ width: 60, height: 60, marginBottom: 8 }} />
+                  <Text style={{ color: Colors.primary, fontSize: 12, fontWeight: 'bold', textAlign: 'center' }}>C.A.L.M Spaces</Text>
                 </TouchableOpacity>
               </View>
               <View style={{ flexDirection: 'row', justifyContent: 'center', width: '100%', marginTop: 10, paddingHorizontal: 10 }}>
                 <TouchableOpacity style={{ width: '45%', height: 120, borderRadius: 25, justifyContent: 'center', alignItems: 'center', elevation: 4, shadowColor: Colors.shadow, shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.18, shadowRadius: 5, marginHorizontal: 10, marginVertical: 8, backgroundColor: Colors.white, borderWidth: 2, borderColor: Colors.primary }} onPress={() => router.push('./buddy-connect')}>
                   <Image source={require('../../assets/images/community.png')} style={{ width: 60, height: 60, marginBottom: 8 }} />
+                  <Text style={{ color: Colors.primary, fontSize: 12, fontWeight: 'bold', textAlign: 'center' }}>Community</Text>
                 </TouchableOpacity>
                 <TouchableOpacity style={{ width: '45%', height: 120, borderRadius: 25, justifyContent: 'center', alignItems: 'center', elevation: 4, shadowColor: Colors.shadow, shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.18, shadowRadius: 5, marginHorizontal: 10, marginVertical: 8, backgroundColor: Colors.white, borderWidth: 2, borderColor: Colors.primary }} onPress={() => router.push('./journal')}>
                   <Image source={require('../../assets/images/journal.png')} style={{ width: 60, height: 60, marginBottom: 8 }} />
+                  <Text style={{ color: Colors.primary, fontSize: 12, fontWeight: 'bold', textAlign: 'center' }}>Journal</Text>
                 </TouchableOpacity>
               </View>
               <View style={{ flexDirection: 'row', justifyContent: 'center', width: '100%', marginTop: 10, paddingHorizontal: 10 }}>
                 <TouchableOpacity style={{ width: '45%', height: 120, borderRadius: 25, justifyContent: 'center', alignItems: 'center', elevation: 4, shadowColor: Colors.shadow, shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.18, shadowRadius: 5, marginHorizontal: 10, marginVertical: 8, backgroundColor: Colors.white, borderWidth: 2, borderColor: Colors.primary }} onPress={() => router.push('./support')}>
                   <Image source={require('../../assets/images/supportself.png')} style={{ width: 60, height: 60, marginBottom: 8 }} />
+                  <Text style={{ color: Colors.primary, fontSize: 12, fontWeight: 'bold', textAlign: 'center' }}>Support Self</Text>
                 </TouchableOpacity>
                 <TouchableOpacity style={{ width: '45%', height: 120, borderRadius: 25, justifyContent: 'center', alignItems: 'center', elevation: 4, shadowColor: Colors.shadow, shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.18, shadowRadius: 5, marginHorizontal: 10, marginVertical: 8, backgroundColor: Colors.white, borderWidth: 2, borderColor: Colors.primary }} onPress={() => router.push(`./message?registration=${studentRegNo}`)}>
                   <Image source={require('../../assets/images/message.png')} style={{ width: 60, height: 60, marginBottom: 8 }} />
+                  <Text style={{ color: Colors.primary, fontSize: 12, fontWeight: 'bold', textAlign: 'center' }}>Messages</Text>
                 </TouchableOpacity>
               </View>
             </View>
@@ -1454,6 +1544,8 @@ export default function StudentHome() {
                 <Image source={require('../../assets/images/home.png')} style={{ width: 40, height: 40 }} />
               ) : tab.key === 'mood' ? (
                 <Image source={require('../../assets/images/mood calender.png')} style={{ width: 40, height: 40 }} />
+              ) : tab.key === 'sos' ? (
+                <Image source={require('../../assets/images/sos.png')} style={{ width: 35, height: 35 }} />
               ) : tab.key === 'setting' ? (
                 <Image source={require('../../assets/images/setting.png')} style={{ width: 35, height: 35 }} />
               ) : (
