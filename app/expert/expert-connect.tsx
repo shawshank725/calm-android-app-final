@@ -186,10 +186,10 @@ export default function ExpertConnect() {
     setRefreshing(false);
   }, [loadSessionRequests]);
 
-  // Check for existing confirmed sessions (prevent any additional bookings)
+  // Check for existing confirmed sessions (allow up to 2 concurrent sessions)
   const checkExistingConfirmedSessions = async (studentReg: string) => {
     try {
-      // Check if student has ANY confirmed sessions (regardless of time/date)
+      // Check if student has 2 or more confirmed sessions
       const { data: confirmedSessions, error } = await supabase
         .from('book_request')
         .select('*')
@@ -198,20 +198,23 @@ export default function ExpertConnect() {
 
       if (error) {
         console.error('Error checking existing confirmed sessions:', error);
-        return { hasConfirmedSession: false, sessionDetails: null };
+        return { hasMaxSessions: false, sessionCount: 0, sessionDetails: null };
       }
 
-      if (confirmedSessions && confirmedSessions.length > 0) {
+      const sessionCount = confirmedSessions?.length || 0;
+      
+      if (confirmedSessions && confirmedSessions.length >= 2) {
         return {
-          hasConfirmedSession: true,
-          sessionDetails: confirmedSessions[0] // Return first confirmed session for display
+          hasMaxSessions: true,
+          sessionCount: sessionCount,
+          sessionDetails: confirmedSessions // Return all confirmed sessions for display
         };
       }
 
-      return { hasConfirmedSession: false, sessionDetails: null };
+      return { hasMaxSessions: false, sessionCount: sessionCount, sessionDetails: confirmedSessions };
     } catch (error) {
       console.error('Error in checkExistingConfirmedSessions:', error);
-      return { hasConfirmedSession: false, sessionDetails: null };
+      return { hasMaxSessions: false, sessionCount: 0, sessionDetails: null };
     }
   };
 
@@ -227,15 +230,14 @@ export default function ExpertConnect() {
         return;
       }
 
-      // Check for existing ACTIVE sessions if confirming a session (pending or confirmed)
+      // Check for existing ACTIVE sessions if confirming a session (allow up to 2)
       if (newStatus === 'confirmed') {
         const { data: activeRows, error: activeErr } = await supabase
           .from('book_request')
           .select('id, expert_name, session_date, session_time, status')
           .eq('student_reg', sessionRequest.studentReg)
           .in('status', ['pending', 'approved'])
-          .neq('id', requestId)
-          .limit(1);
+          .neq('id', requestId);
 
         if (activeErr) {
           console.error('❌ Error checking active sessions:', activeErr);
@@ -243,23 +245,16 @@ export default function ExpertConnect() {
           return;
         }
 
-        if (activeRows && activeRows.length > 0) {
-          const s = activeRows[0];
-          const existingSessionDate = new Date(s.session_date).toLocaleDateString('en-US', {
-            weekday: 'long', month: 'long', day: 'numeric', year: 'numeric'
-          });
-          let existingSessionTime: string = s.session_time;
-          try {
-            const [hours, minutes] = s.session_time.split(':');
-            const hour = parseInt(hours);
-            const ampm = hour >= 12 ? 'PM' : 'AM';
-            const displayHour = hour % 12 || 12;
-            existingSessionTime = `${displayHour}:${minutes} ${ampm}`;
-          } catch {}
-
+        // Check if student already has 2 active sessions
+        if (activeRows && activeRows.length >= 2) {
           Alert.alert(
-            'Student Already Has Active Session',
-            `${sessionRequest.studentName} already has an active session (${s.status}) with ${s.expert_name || 'an expert'} on ${existingSessionDate} at ${existingSessionTime}.\n\nStudents can only have one active session (pending or confirmed) at a time. Ask the student to complete or cancel the existing session first.`,
+            'Maximum Sessions Reached',
+            `${sessionRequest.studentName} already has ${activeRows.length} active sessions.\n\nStudents can have a maximum of 2 concurrent active sessions (pending or approved).\n\nExisting Sessions:\n${activeRows.map((s, i) => {
+              const date = new Date(s.session_date).toLocaleDateString('en-US', {
+                weekday: 'short', month: 'short', day: 'numeric'
+              });
+              return `${i + 1}. ${s.expert_name || 'Expert'} - ${date} at ${s.session_time} (${s.status})`;
+            }).join('\n')}\n\nPlease ask the student to complete or cancel at least one session before accepting this request.`,
             [{ text: 'OK' }]
           );
           return;
@@ -645,7 +640,7 @@ export default function ExpertConnect() {
       >
         <View style={styles.modalContainer}>
           <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>📅 Today's Sessions</Text>
+            <Text style={styles.modalTitle}>📅 Today&apos;s Sessions</Text>
             <TouchableOpacity
               onPress={() => setShowTodaysSessionsModal(false)}
               style={styles.modalCloseButton}
@@ -675,7 +670,7 @@ export default function ExpertConnect() {
                   <Text style={styles.modalEmptyIcon}>🗓️</Text>
                   <Text style={styles.modalEmptyTitle}>No Sessions Today</Text>
                   <Text style={styles.modalEmptyText}>
-                    You don't have any confirmed or completed sessions scheduled for today.
+                    You don&apos;t have any confirmed or completed sessions scheduled for today.
                   </Text>
                 </View>
               ) : (
