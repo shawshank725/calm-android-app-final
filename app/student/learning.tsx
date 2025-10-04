@@ -18,19 +18,11 @@ import { supabase } from '../../lib/supabase';
 
 interface LearningResource {
   id: string;
-  title: string;
+  resource_title: string;
   description: string;
   file_url: string;
-  file_name: string;
   file_type: string;
-  uploaded_by: string;
-  uploaded_by_name: string;
-  uploaded_by_type: 'admin' | 'expert' | 'student';
-  created_at: string;
   category: string;
-  tags: string[];
-  download_count: number;
-  file_size: number;
 }
 
 const { width } = Dimensions.get('window');
@@ -132,19 +124,11 @@ export default function LearningSupport() {
         // Map library data to LearningResource format
         const mappedResources: LearningResource[] = (libraryData || []).map(item => ({
           id: item.id || String(Math.random()),
-          title: item.title || item.name || 'Untitled Resource',
+          resource_title: item.resource_title || item.title || item.name || 'Untitled Resource',
           description: item.description || 'No description available',
           file_url: item.file_url || item.url || '',
-          file_name: item.file_name || item.name || 'Unknown file',
           file_type: item.file_type || item.type || 'unknown',
-          uploaded_by: item.uploaded_by || item.author || 'Unknown',
-          uploaded_by_name: item.uploaded_by_name || item.author_name || 'Unknown',
-          uploaded_by_type: item.uploaded_by_type || 'admin',
-          created_at: item.created_at || item.upload_date || new Date().toISOString(),
-          category: item.category || 'Academic Resources',
-          tags: item.tags || [],
-          download_count: item.download_count || 0,
-          file_size: item.file_size || 0
+          category: item.category || 'Academic Resources'
         }));
 
         console.log(`Loaded ${mappedResources.length} resources from library table`);
@@ -165,94 +149,40 @@ export default function LearningSupport() {
     setRefreshing(false);
   }, []);
 
-  const formatFileSize = (bytes: number) => {
-    if (bytes === 0) return '0 Bytes';
-    const k = 1024;
-    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
-  };
-
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    return date.toLocaleDateString() + ' ' + date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-  };
-
   const handleDownload = async (resource: LearningResource) => {
     try {
-      // In a real app, you'd download the file or open it in a PDF viewer
-      // For now, we'll show an alert and open in browser if it's a valid URL
       Alert.alert(
         'Download Resource',
-        `Download "${resource.title}"?`,
+        `Download "${resource.resource_title}"?`,
         [
           { text: 'Cancel', style: 'cancel' },
           {
             text: 'Download',
             onPress: async () => {
               try {
-                // Update download count
-                await updateDownloadCount(resource.id);
-
-                // Open PDF - in a real app you'd use expo-document-picker or similar
                 if (resource.file_url.startsWith('http')) {
-                await Linking.openURL(resource.file_url);
-              } else {
-                Alert.alert('Success', 'Resource downloaded successfully!');
+                  await Linking.openURL(resource.file_url);
+                  Alert.alert('Success', 'Opening resource...');
+                } else {
+                  Alert.alert('Error', 'Invalid resource URL');
+                }
+              } catch (downloadError) {
+                console.error('Download error:', downloadError);
+                Alert.alert('Error', 'Failed to open resource');
               }
-            } catch (downloadError) {
-              console.error('Download error:', downloadError);
-              Alert.alert('Error', 'Failed to download resource');
             }
           }
-        }
-      ]
-    );
-  } catch (error) {
-    console.error('Download error:', error);
-    Alert.alert('Error', 'Failed to download resource');
-  }
-};  const handlePreview = (resource: LearningResource) => {
-    setSelectedResource(resource);
-    setShowPreviewModal(true);
+        ]
+      );
+    } catch (error) {
+      console.error('Download error:', error);
+      Alert.alert('Error', 'Failed to download resource');
+    }
   };
 
-  const updateDownloadCount = async (resourceId: string) => {
-    try {
-      // Get current download count first from library table
-      const { data: currentResource } = await supabase
-        .from('library')
-        .select('download_count')
-        .eq('id', resourceId)
-        .single();
-
-      if (currentResource) {
-        // Update local state first for immediate UI response
-        setResources(prev => prev.map(resource =>
-          resource.id === resourceId
-            ? { ...resource, download_count: resource.download_count + 1 }
-            : resource
-        ));
-
-        // Update the library table with new count
-        const { error: updateError } = await supabase
-          .from('library')
-          .update({ download_count: currentResource.download_count + 1 })
-          .eq('id', resourceId);
-
-        if (updateError) {
-          console.error('Error updating download count:', updateError);
-          // Revert local state if database update failed
-          setResources(prev => prev.map(resource =>
-            resource.id === resourceId
-              ? { ...resource, download_count: resource.download_count - 1 }
-              : resource
-          ));
-        }
-      }
-    } catch (err) {
-      console.error('Error updating download count:', err);
-    }
+  const handlePreview = (resource: LearningResource) => {
+    setSelectedResource(resource);
+    setShowPreviewModal(true);
   };
 
   const renderCategoryButton = ({ item }: { item: string }) => (
@@ -281,7 +211,7 @@ export default function LearningSupport() {
           <Text style={styles.resourceIconText}>📄</Text>
         </View>
         <View style={styles.resourceInfo}>
-          <Text style={styles.resourceTitle}>{item.title}</Text>
+          <Text style={styles.resourceTitle}>{item.resource_title}</Text>
           <Text style={styles.resourceDescription} numberOfLines={2}>
             {item.description}
           </Text>
@@ -289,23 +219,15 @@ export default function LearningSupport() {
       </View>
 
       <View style={styles.resourceMeta}>
-        <Text style={styles.resourceMetaText}>
-          📁 {item.category} • 👤 {item.uploaded_by_name}
-        </Text>
-        <Text style={styles.resourceMetaText}>
-          📊 {formatFileSize(item.file_size)} • ⬇️ {item.download_count} downloads
-        </Text>
-        <Text style={styles.resourceDate}>
-          📅 {formatDate(item.created_at)}
-        </Text>
+        <Text style={styles.resourceMetaText}>📁 {item.category}</Text>
+        <Text style={styles.resourceMetaText}>📄 {item.file_type}</Text>
       </View>
 
       <View style={styles.resourceActions}>
         <TouchableOpacity
           style={styles.previewButton}
           onPress={() => handlePreview(item)}
-          activeOpacity={0.3}
-          delayPressIn={0}
+          activeOpacity={0.7}
         >
           <Text style={styles.previewButtonText}>👁️ Preview</Text>
         </TouchableOpacity>
@@ -313,8 +235,7 @@ export default function LearningSupport() {
         <TouchableOpacity
           style={styles.downloadButton}
           onPress={() => handleDownload(item)}
-          activeOpacity={0.3}
-          delayPressIn={0}
+          activeOpacity={0.7}
         >
           <Text style={styles.downloadButtonText}>⬇️ Download</Text>
         </TouchableOpacity>
@@ -409,7 +330,7 @@ export default function LearningSupport() {
 
             {selectedResource && (
               <View style={styles.modalBody}>
-                <Text style={styles.modalResourceTitle}>{selectedResource.title}</Text>
+                <Text style={styles.modalResourceTitle}>{selectedResource.resource_title}</Text>
                 <Text style={styles.modalResourceDescription}>
                   {selectedResource.description}
                 </Text>
@@ -419,13 +340,7 @@ export default function LearningSupport() {
                     📁 Category: {selectedResource.category}
                   </Text>
                   <Text style={styles.modalDetailText}>
-                    👤 Uploaded by: {selectedResource.uploaded_by_name}
-                  </Text>
-                  <Text style={styles.modalDetailText}>
-                    📊 Size: {formatFileSize(selectedResource.file_size)}
-                  </Text>
-                  <Text style={styles.modalDetailText}>
-                    ⬇️ Downloads: {selectedResource.download_count}
+                    📄 Type: {selectedResource.file_type}
                   </Text>
                 </View>
 
@@ -436,8 +351,7 @@ export default function LearningSupport() {
                       setShowPreviewModal(false);
                       handleDownload(selectedResource);
                     }}
-                    activeOpacity={0.3}
-                    delayPressIn={0}
+                    activeOpacity={0.7}
                   >
                     <Text style={styles.modalDownloadButtonText}>⬇️ Download Resource</Text>
                   </TouchableOpacity>
@@ -616,15 +530,12 @@ const styles = StyleSheet.create({
   },
   resourceMeta: {
     marginBottom: 12,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
   },
   resourceMetaText: {
     fontSize: 12,
     color: '#888',
-    marginBottom: 2,
-  },
-  resourceDate: {
-    fontSize: 12,
-    color: '#999',
   },
   resourceActions: {
     flexDirection: 'row',
