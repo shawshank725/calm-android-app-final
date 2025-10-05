@@ -170,7 +170,8 @@ export default function ExpertClientPage() {
           text: 'Approve',
           onPress: async () => {
             try {
-              const { error } = await supabase
+              // Update the booking request status
+              const { error: bookingError } = await supabase
                 .from('book_request')
                 .update({
                   status: 'approved',
@@ -178,13 +179,51 @@ export default function ExpertClientPage() {
                 })
                 .eq('id', session.id);
 
-              if (error) {
-                console.error('Error approving session:', error);
+              if (bookingError) {
+                console.error('Error approving session:', bookingError);
                 Alert.alert('Error', 'Failed to approve session. Please try again.');
-              } else {
-                Alert.alert('✅ Success', 'Session approved and booked successfully!');
-                await loadPatients();
+                return;
               }
+
+              // Mark the time slot as unavailable in expert_schedule
+              // Convert time format from "HH:MM AM/PM" to "HH:MM:SS"
+              const convertTimeFormat = (timeStr: string): string => {
+                const [time, period] = timeStr.split(' ');
+                let [hours, minutes] = time.split(':');
+                let hour = parseInt(hours);
+
+                if (period === 'PM' && hour !== 12) {
+                  hour += 12;
+                } else if (period === 'AM' && hour === 12) {
+                  hour = 0;
+                }
+
+                return `${hour.toString().padStart(2, '0')}:${minutes}:00`;
+              };
+
+              const startTime = convertTimeFormat(session.session_time);
+
+              // Update the expert_schedule to mark slot as booked
+              const { error: scheduleError } = await supabase
+                .from('expert_schedule')
+                .update({
+                  is_available: false,
+                  booked_by: session.studentReg
+                })
+                .eq('expert_registration', session.expert_registration || expertRegNo)
+                .eq('date', session.session_date)
+                .eq('start_time', startTime);
+
+              if (scheduleError) {
+                console.error('Warning: Could not update schedule slot:', scheduleError);
+                // Don't fail the approval if schedule update fails
+                console.log('Session approved but schedule slot update failed');
+              } else {
+                console.log('Successfully marked time slot as unavailable');
+              }
+
+              Alert.alert('✅ Success', 'Session approved and booked successfully!');
+              await loadPatients();
             } catch (err) {
               console.error('Error:', err);
               Alert.alert('Error', 'An error occurred. Please try again.');

@@ -1,6 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as DocumentPicker from 'expo-document-picker';
+import * as FileSystem from 'expo-file-system';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
@@ -1197,14 +1198,31 @@ export default function ExpertHome() {
                         const fileExt = fileName.split('.').pop();
                         const filePath = `${expertRegNo}/${Date.now()}.${fileExt}`;
 
-                        // Read file as blob
-                        const response = await fetch(fileUri);
-                        const blob = await response.blob();
+                        let fileData;
+
+                        if (Platform.OS === 'web') {
+                          // Web platform - use fetch with blob
+                          const response = await fetch(fileUri);
+                          fileData = await response.blob();
+                        } else {
+                          // Mobile platform - use FileSystem to read as base64 then convert
+                          const base64 = await FileSystem.readAsStringAsync(fileUri, {
+                            encoding: FileSystem.EncodingType.Base64,
+                          });
+
+                          // Convert base64 to Uint8Array
+                          const binaryString = atob(base64);
+                          const bytes = new Uint8Array(binaryString.length);
+                          for (let i = 0; i < binaryString.length; i++) {
+                            bytes[i] = binaryString.charCodeAt(i);
+                          }
+                          fileData = bytes;
+                        }
 
                         // Upload to Supabase storage
                         const { data, error } = await supabase.storage
                           .from('resources')
-                          .upload(filePath, blob, {
+                          .upload(filePath, fileData, {
                             contentType: selectedFile?.mimeType || 'application/octet-stream',
                             upsert: false
                           });
@@ -1222,7 +1240,7 @@ export default function ExpertHome() {
                         return publicUrl;
                       } catch (error) {
                         console.error('Error uploading file:', error);
-                        return null;
+                        throw error; // Re-throw to be caught by outer try-catch
                       }
                     };
 
@@ -1342,7 +1360,11 @@ export default function ExpertHome() {
                       );
                     } catch (err) {
                       console.log("Upload failed:", err);
-                      Alert.alert('Upload Failed', 'There was an error uploading the file. Please try again.');
+                      const errorMessage = err instanceof Error ? err.message : 'Unknown error occurred';
+                      Alert.alert(
+                        'Upload Failed',
+                        `There was an error uploading the file.\n\nError: ${errorMessage}\n\nPlease check:\n• Internet connection\n• File size (max 50MB for videos, 10MB for others)\n• Supabase storage bucket exists`
+                      );
                       setUploadProgress(0);
                       setUploadStatus('');
                       progressAnim.setValue(0);

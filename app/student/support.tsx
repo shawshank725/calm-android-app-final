@@ -23,18 +23,18 @@ export default function SupportPage() {
         {/* Support Tools Grid - 2x2 Layout */}
         <View style={{ flexDirection: 'row', justifyContent: 'center', width: '100%', marginTop: 10, paddingHorizontal: 10 }}>
           <TouchableOpacity style={styles.supportButton} onPress={() => Linking.openURL('https://sgtuniversity.knimbus.com/user#/')}>
-            <Image source={require('../../assets/images/elibrary.png')} style={styles.supportButtonIcon} />
+            <Image source={require('../../assets/images/elibrary.png')} style={styles.supportButtonIcon} resizeMode="contain" />
           </TouchableOpacity>
           <TouchableOpacity style={styles.supportButton} onPress={() => router.push('./emergency')}>
-            <Image source={require('../../assets/images/sos.png')} style={styles.supportButtonIcon} />
+            <Image source={require('../../assets/images/sos.png')} style={styles.supportButtonIcon} resizeMode="contain" />
           </TouchableOpacity>
         </View>
         <View style={{ flexDirection: 'row', justifyContent: 'center', width: '100%', marginTop: 10, paddingHorizontal: 10 }}>
           <TouchableOpacity style={styles.supportButton} onPress={() => router.push('./learning')}>
-            <Image source={require('../../assets/images/learning support.png')} style={styles.supportButtonIcon} />
+            <Image source={require('../../assets/images/learning support.png')} style={styles.supportButtonIcon} resizeMode="contain" />
           </TouchableOpacity>
           <TouchableOpacity style={styles.supportButton} onPress={() => router.push('./mood-playlists')}>
-            <Image source={require('../../assets/images/mood playlist.png')} style={styles.supportButtonIcon} />
+            <Image source={require('../../assets/images/mood playlist.png')} style={styles.supportButtonIcon} resizeMode="contain" />
           </TouchableOpacity>
         </View>
       </View>
@@ -120,11 +120,13 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.white,
     borderWidth: 2,
     borderColor: Colors.primary,
+    padding: 10,
   },
   supportButtonIcon: {
-    width: 90,
-    height: 90,
-    marginBottom: 8,
+    width: '100%',
+    height: '100%',
+    maxWidth: 100,
+    maxHeight: 100,
   },
   supportButtonText: {
     color: Colors.primary,

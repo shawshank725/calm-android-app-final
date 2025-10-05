@@ -9,6 +9,7 @@ import {
     ScrollView,
     StyleSheet,
     Text,
+    TextInput,
     TouchableOpacity,
     View
 } from 'react-native';
@@ -29,18 +30,17 @@ interface TimeSlot {
 
 // Generate default time slots from 9:00 AM to 3:50 PM (50-minute sessions)
 const generateDefaultSlots = (): Array<{ start: string; end: string }> => {
-  const slots = [];
-  for (let hour = 9; hour <= 15; hour++) {
-    if (hour === 15) {
-      // Last slot 3:00-3:50 PM
-      slots.push({ start: '15:00:00', end: '15:50:00' });
-    } else {
-      slots.push({
-        start: `${hour.toString().padStart(2, '0')}:00:00`,
-        end: `${hour.toString().padStart(2, '0')}:50:00`
-      });
-    }
-  }
+  const slots: Array<{ start: string; end: string }> = [];
+  // 9:00-9:50, 10:00-10:50, 11:00-11:50, 12:00-12:50, 2:00-2:50, 3:00-3:50
+  const hours = [9, 10, 11, 12, 14, 15]; // Skip 13 (1:00 PM)
+
+  hours.forEach(hour => {
+    slots.push({
+      start: `${hour.toString().padStart(2, '0')}:00:00`,
+      end: `${hour.toString().padStart(2, '0')}:50:00`
+    });
+  });
+
   return slots;
 };
 
@@ -53,9 +53,18 @@ export default function ExpertSchedulePage() {
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [modalVisible, setModalVisible] = useState(false);
+  const [customSlotModalVisible, setCustomSlotModalVisible] = useState(false);
   const [loading, setLoading] = useState(false);
   const [slots, setSlots] = useState<TimeSlot[]>([]);
   const [allSchedules, setAllSchedules] = useState<Map<string, TimeSlot[]>>(new Map());
+
+  // Custom slot form
+  const [customSlot, setCustomSlot] = useState({
+    startHour: '09',
+    startMinute: '00',
+    endHour: '09',
+    endMinute: '50'
+  });
 
   useEffect(() => {
     loadExpertInfo();
@@ -136,7 +145,108 @@ export default function ExpertSchedulePage() {
   const handleDatePress = async (date: Date) => {
     setSelectedDate(date);
     await loadSlotsForDate(date);
-    setModalVisible(true);
+
+    // Auto-add default slots if no slots exist for this date
+    const dateString = date.toISOString().split('T')[0];
+    const existingSlots = allSchedules.get(dateString);
+
+    if (!existingSlots || existingSlots.length === 0) {
+      // Automatically add default slots
+      setLoading(true);
+      try {
+        const slotsToAdd = DEFAULT_SLOTS.map(slot => ({
+          expert_registration: expertRegNo,
+          expert_name: expertName,
+          date: dateString,
+          start_time: slot.start,
+          end_time: slot.end,
+          is_available: true
+        }));
+
+        const { error } = await supabase
+          .from('expert_schedule')
+          .insert(slotsToAdd);
+
+        if (!error) {
+          await loadSlotsForDate(date);
+          await loadAllSchedules();
+        }
+      } catch (error) {
+        console.error('Error auto-adding slots:', error);
+      } finally {
+        setLoading(false);
+      }
+    }
+  };
+
+  const handleAddCustomSlot = async () => {
+    if (!selectedDate) return;
+
+    // Validate inputs are not empty
+    if (!customSlot.startHour || !customSlot.startMinute || !customSlot.endHour || !customSlot.endMinute) {
+      Alert.alert('Invalid Input', 'Please fill in all time fields.');
+      return;
+    }
+
+    const startTime = `${customSlot.startHour.padStart(2, '0')}:${customSlot.startMinute.padStart(2, '0')}:00`;
+    const endTime = `${customSlot.endHour.padStart(2, '0')}:${customSlot.endMinute.padStart(2, '0')}:00`;
+
+    // Validate time range
+    if (startTime >= endTime) {
+      Alert.alert('Invalid Time', 'End time must be after start time.');
+      return;
+    }
+
+    Alert.alert(
+      'Add Custom Slot',
+      `Add slot from ${formatTime(startTime)} to ${formatTime(endTime)}?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Add',
+          onPress: async () => {
+            setLoading(true);
+            try {
+              const dateString = selectedDate.toISOString().split('T')[0];
+              const slotToAdd = {
+                expert_registration: expertRegNo,
+                expert_name: expertName,
+                date: dateString,
+                start_time: startTime,
+                end_time: endTime,
+                is_available: true
+              };
+
+              const { error } = await supabase
+                .from('expert_schedule')
+                .insert([slotToAdd]);
+
+              if (error) {
+                console.error('Error adding custom slot:', error);
+                Alert.alert('Error', 'Failed to add slot. It may already exist or overlap with another slot.');
+              } else {
+                Alert.alert('Success', 'Custom slot added successfully!');
+                setCustomSlotModalVisible(false);
+                await loadSlotsForDate(selectedDate);
+                await loadAllSchedules();
+                // Reset form
+                setCustomSlot({
+                  startHour: '09',
+                  startMinute: '00',
+                  endHour: '09',
+                  endMinute: '50'
+                });
+              }
+            } catch (error) {
+              console.error('Error:', error);
+              Alert.alert('Error', 'An error occurred while adding slot.');
+            } finally {
+              setLoading(false);
+            }
+          }
+        }
+      ]
+    );
   };
 
   const handleAddDefaultSlots = async () => {
@@ -470,6 +580,119 @@ export default function ExpertSchedulePage() {
     </Modal>
   );
 
+  const renderCustomSlotModal = () => (
+    <Modal
+      visible={customSlotModalVisible}
+      animationType="slide"
+      transparent={true}
+      onRequestClose={() => setCustomSlotModalVisible(false)}
+    >
+      <View style={styles.modalOverlay}>
+        <View style={styles.customSlotModal}>
+          <View style={styles.modalHeader}>
+            <Text style={styles.modalTitle}>Add Custom Time Slot</Text>
+            <TouchableOpacity onPress={() => setCustomSlotModalVisible(false)}>
+              <Ionicons name="close" size={28} color="#333" />
+            </TouchableOpacity>
+          </View>
+
+          <ScrollView style={styles.customSlotForm}>
+            {/* Start Time */}
+            <Text style={styles.formLabel}>Start Time</Text>
+            <View style={styles.timeInputRow}>
+              <TextInput
+                style={styles.timeInput}
+                value={customSlot.startHour}
+                onChangeText={(text) => {
+                  const num = text.replace(/[^0-9]/g, '');
+                  if (num === '') {
+                    setCustomSlot({ ...customSlot, startHour: '' });
+                  } else if (parseInt(num) >= 0 && parseInt(num) <= 23) {
+                    setCustomSlot({ ...customSlot, startHour: num });
+                  }
+                }}
+                keyboardType="numeric"
+                maxLength={2}
+                placeholder="HH"
+              />
+              <Text style={styles.timeSeparator}>:</Text>
+              <TextInput
+                style={styles.timeInput}
+                value={customSlot.startMinute}
+                onChangeText={(text) => {
+                  const num = text.replace(/[^0-9]/g, '');
+                  if (num === '') {
+                    setCustomSlot({ ...customSlot, startMinute: '' });
+                  } else if (parseInt(num) >= 0 && parseInt(num) <= 59) {
+                    setCustomSlot({ ...customSlot, startMinute: num });
+                  }
+                }}
+                keyboardType="numeric"
+                maxLength={2}
+                placeholder="MM"
+              />
+            </View>
+
+            {/* End Time */}
+            <Text style={styles.formLabel}>End Time</Text>
+            <View style={styles.timeInputRow}>
+              <TextInput
+                style={styles.timeInput}
+                value={customSlot.endHour}
+                onChangeText={(text) => {
+                  const num = text.replace(/[^0-9]/g, '');
+                  if (num === '') {
+                    setCustomSlot({ ...customSlot, endHour: '' });
+                  } else if (parseInt(num) >= 0 && parseInt(num) <= 23) {
+                    setCustomSlot({ ...customSlot, endHour: num });
+                  }
+                }}
+                keyboardType="numeric"
+                maxLength={2}
+                placeholder="HH"
+              />
+              <Text style={styles.timeSeparator}>:</Text>
+              <TextInput
+                style={styles.timeInput}
+                value={customSlot.endMinute}
+                onChangeText={(text) => {
+                  const num = text.replace(/[^0-9]/g, '');
+                  if (num === '') {
+                    setCustomSlot({ ...customSlot, endMinute: '' });
+                  } else if (parseInt(num) >= 0 && parseInt(num) <= 59) {
+                    setCustomSlot({ ...customSlot, endMinute: num });
+                  }
+                }}
+                keyboardType="numeric"
+                maxLength={2}
+                placeholder="MM"
+              />
+            </View>
+
+            <Text style={styles.timePreview}>
+              Slot: {customSlot.startHour.padStart(2, '0')}:{customSlot.startMinute.padStart(2, '0')} - {customSlot.endHour.padStart(2, '0')}:{customSlot.endMinute.padStart(2, '0')}
+            </Text>
+
+            <TouchableOpacity
+              style={styles.addCustomSlotButton}
+              onPress={handleAddCustomSlot}
+              disabled={loading}
+            >
+              {loading ? (
+                <ActivityIndicator color="#fff" />
+              ) : (
+                <>
+                  <Ionicons name="checkmark-circle" size={20} color="#fff" />
+                  <Text style={styles.actionBtnText}>Add Slot</Text>
+                </>
+              )}
+            </TouchableOpacity>
+          </ScrollView>
+        </View>
+      </View>
+    </Modal>
+  );
+
   return (
     <View style={styles.container}>
       {/* Header */}
@@ -491,7 +714,7 @@ export default function ExpertSchedulePage() {
           <View style={styles.infoTextContainer}>
             <Text style={styles.infoTitle}>Schedule Management</Text>
             <Text style={styles.infoText}>
-              Tap on any date to add or manage time slots. Default slots run from 9:00 AM to 3:50 PM.
+              Tap on any date to view and manage time slots. Default slots (9AM-9:50AM, 10AM-10:50AM, 11AM-11:50AM, 12PM-12:50PM, 2PM-2:50PM, 3PM-3:50PM) are added automatically.
             </Text>
           </View>
         </View>
@@ -501,7 +724,6 @@ export default function ExpertSchedulePage() {
 
         {/* Legend */}
         <View style={styles.legend}>
-          <Text style={styles.legendTitle}>Legend:</Text>
           <View style={styles.legendItems}>
             <View style={styles.legendItem}>
               <View style={[styles.legendBox, { backgroundColor: Colors.primary + '20' }]} />
@@ -513,10 +735,109 @@ export default function ExpertSchedulePage() {
             </View>
           </View>
         </View>
+
+        {/* Selected Date Schedule */}
+        {selectedDate && (
+          <View style={styles.scheduleSection}>
+            <View style={styles.scheduleSectionHeader}>
+              <View>
+                <Text style={styles.scheduleSectionTitle}>
+                  {selectedDate.toLocaleDateString('en-US', {
+                    weekday: 'long',
+                    month: 'long',
+                    day: 'numeric'
+                  })}
+                </Text>
+                <Text style={styles.scheduleSectionSubtitle}>
+                  {slots.length} slot{slots.length !== 1 ? 's' : ''} scheduled
+                </Text>
+              </View>
+            </View>
+
+            {/* Action Buttons */}
+            <View style={styles.actionButtonsRow}>
+              <TouchableOpacity
+                style={[styles.actionBtn, styles.addDefaultBtn]}
+                onPress={handleAddDefaultSlots}
+                disabled={loading}
+              >
+                <Ionicons name="calendar" size={18} color="#fff" />
+                <Text style={styles.actionBtnText}>Add Default</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.actionBtn, styles.addCustomBtn]}
+                onPress={() => setCustomSlotModalVisible(true)}
+                disabled={loading}
+              >
+                <Ionicons name="add-circle" size={18} color="#fff" />
+                <Text style={styles.actionBtnText}>Custom Slot</Text>
+              </TouchableOpacity>
+
+              {slots.length > 0 && (
+                <TouchableOpacity
+                  style={[styles.actionBtn, styles.deleteAllBtn]}
+                  onPress={handleDeleteAllSlots}
+                  disabled={loading}
+                >
+                  <Ionicons name="trash" size={18} color="#fff" />
+                  <Text style={styles.actionBtnText}>Delete All</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+
+            {/* Slots List */}
+            {loading ? (
+              <View style={styles.loadingContainer}>
+                <ActivityIndicator size="large" color={Colors.primary} />
+                <Text style={styles.loadingText}>Loading slots...</Text>
+              </View>
+            ) : slots.length === 0 ? (
+              <View style={styles.emptySlots}>
+                <Ionicons name="calendar-outline" size={50} color="#ccc" />
+                <Text style={styles.emptySlotsText}>No time slots scheduled</Text>
+                <Text style={styles.emptySlotsHint}>Add default slots or create a custom time slot</Text>
+              </View>
+            ) : (
+              <View style={styles.slotsList}>
+                {slots.map((slot, index) => (
+                  <View key={slot.id || index} style={styles.slotCard}>
+                    <View style={styles.slotInfo}>
+                      <View style={styles.slotTimeContainer}>
+                        <Ionicons name="time-outline" size={20} color={Colors.primary} />
+                        <Text style={styles.slotTime}>
+                          {formatTime(slot.start_time)} - {formatTime(slot.end_time)}
+                        </Text>
+                      </View>
+                      <View style={[
+                        styles.slotStatus,
+                        { backgroundColor: slot.is_available ? '#E8F5E9' : '#FFEBEE' }
+                      ]}>
+                        <Text style={[
+                          styles.slotStatusText,
+                          { color: slot.is_available ? '#4CAF50' : '#F44336' }
+                        ]}>
+                          {slot.is_available ? '✓ Available' : '✗ Booked'}
+                        </Text>
+                      </View>
+                    </View>
+                    <TouchableOpacity
+                      style={styles.deleteSlotBtn}
+                      onPress={() => slot.id && handleDeleteSlot(slot.id)}
+                      disabled={loading}
+                    >
+                      <Ionicons name="trash-outline" size={22} color="#F44336" />
+                    </TouchableOpacity>
+                  </View>
+                ))}
+              </View>
+            )}
+          </View>
+        )}
       </ScrollView>
 
-      {/* Slot Management Modal */}
-      {renderSlotModal()}
+      {/* Custom Slot Modal */}
+      {renderCustomSlotModal()}
     </View>
   );
 }
@@ -810,5 +1131,103 @@ const styles = StyleSheet.create({
   },
   deleteSlotBtn: {
     padding: 8,
+  },
+  // Schedule section styles (inline slot display)
+  scheduleSection: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    padding: 15,
+    marginTop: 20,
+  },
+  scheduleSectionHeader: {
+    marginBottom: 15,
+  },
+  scheduleSectionTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#333',
+    marginBottom: 4,
+  },
+  scheduleSectionSubtitle: {
+    fontSize: 14,
+    color: '#666',
+  },
+  actionButtonsRow: {
+    flexDirection: 'row',
+    gap: 10,
+    marginBottom: 15,
+  },
+  addDefaultBtn: {
+    backgroundColor: Colors.primary,
+  },
+  addCustomBtn: {
+    backgroundColor: '#2196F3',
+  },
+  loadingText: {
+    textAlign: 'center',
+    color: '#666',
+    fontSize: 14,
+    padding: 20,
+  },
+  // Custom slot modal styles
+  customSlotModal: {
+    backgroundColor: '#fff',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    maxHeight: '70%',
+    width: '100%',
+    position: 'absolute',
+    bottom: 0,
+  },
+  customSlotForm: {
+    padding: 20,
+  },
+  formLabel: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#333',
+    marginBottom: 10,
+    marginTop: 15,
+  },
+  timeInputRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 10,
+  },
+  timeInput: {
+    backgroundColor: '#f5f5f5',
+    borderRadius: 10,
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    fontSize: 20,
+    fontWeight: '600',
+    textAlign: 'center',
+    minWidth: 70,
+    borderWidth: 1,
+    borderColor: '#ddd',
+  },
+  timeSeparator: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#333',
+  },
+  timePreview: {
+    textAlign: 'center',
+    fontSize: 16,
+    color: Colors.primary,
+    fontWeight: '600',
+    marginTop: 20,
+    marginBottom: 10,
+  },
+  addCustomSlotButton: {
+    backgroundColor: Colors.primary,
+    borderRadius: 10,
+    padding: 15,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    marginTop: 20,
   },
 });

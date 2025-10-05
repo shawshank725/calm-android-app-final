@@ -12,6 +12,8 @@ export default function StudentCalm() {
   const [selectedPsychologist, setSelectedPsychologist] = useState<string | null>(null);
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [selectedTime, setSelectedTime] = useState<string | null>(null);
+  const [availableTimeSlots, setAvailableTimeSlots] = useState<any[]>([]);
+  const [loadingTimeSlots, setLoadingTimeSlots] = useState(false);
 
   // Peer listener modal state
   const [showPeerListenerModal, setShowPeerListenerModal] = useState(false);
@@ -268,6 +270,118 @@ export default function StudentCalm() {
     return bookedSessions.includes(sessionKey);
   };
 
+  // Load available time slots from expert_schedule table
+  const loadAvailableTimeSlots = async (expertRegistration: string, date: string) => {
+    setLoadingTimeSlots(true);
+    try {
+      console.log('Loading time slots for expert:', expertRegistration, 'on date:', date);
+
+      const { data: slots, error } = await supabase
+        .from('expert_schedule')
+        .select('*')
+        .eq('expert_registration', expertRegistration)
+        .eq('date', date)
+        .order('start_time', { ascending: true });
+
+      if (error) {
+        console.error('Error loading time slots:', error);
+        console.error('Error details:', error.message, error.details);
+        setAvailableTimeSlots([]);
+        Alert.alert('Error', `Failed to load time slots: ${error.message}`);
+      } else {
+        console.log('Time slots loaded successfully:', slots?.length || 0, 'slots');
+        console.log('Slot details:', JSON.stringify(slots, null, 2));
+
+        // Process slots based on current time
+        const now = new Date();
+
+        // Process slots and handle past time slots
+        const processedSlots = slots || [];
+        const bookedSlotsToFree: any[] = [];
+        const unbookedSlotsToExpire: any[] = [];
+
+        processedSlots.forEach(slot => {
+          if (!slot.date || !slot.start_time) return;
+
+          // Parse start time (HH:MM:SS format)
+          const [startHours, startMinutes] = slot.start_time.split(':').map(Number);
+          const slotStartDateTime = new Date(slot.date);
+          slotStartDateTime.setHours(startHours, startMinutes, 0, 0);
+
+          // Check if slot start time has passed or started
+          const hasStarted = now >= slotStartDateTime;
+
+          if (hasStarted) {
+            // Case 1: Slot was booked and session ended - free it for future bookings
+            if (!slot.is_available && slot.booked_by && slot.end_time) {
+              const [endHours, endMinutes] = slot.end_time.split(':').map(Number);
+              const slotEndDateTime = new Date(slot.date);
+              slotEndDateTime.setHours(endHours, endMinutes, 0, 0);
+
+              if (now > slotEndDateTime) {
+                console.log(`Past booked session ended - freeing slot: ${slot.date} ${slot.start_time}-${slot.end_time}`);
+                bookedSlotsToFree.push(slot.id);
+                slot.is_available = true;
+                slot.booked_by = null;
+              }
+            }
+            // Case 2: Slot was available but time has started/passed - mark as expired
+            else if (slot.is_available && !slot.booked_by) {
+              console.log(`Unbooked slot expired - marking unavailable: ${slot.date} ${slot.start_time}`);
+              unbookedSlotsToExpire.push(slot.id);
+              slot.is_available = false;
+              slot.booked_by = null;
+            }
+          }
+        });
+
+        // Update database for past booked slots (free them)
+        if (bookedSlotsToFree.length > 0) {
+          console.log(`Freeing ${bookedSlotsToFree.length} completed sessions`);
+          supabase
+            .from('expert_schedule')
+            .update({ is_available: true, booked_by: null })
+            .in('id', bookedSlotsToFree)
+            .then(({ error: updateError }) => {
+              if (updateError) {
+                console.error('Error freeing past slots:', updateError);
+              } else {
+                console.log('Successfully freed past booked slots');
+              }
+            });
+        }
+
+        // Update database for unbooked expired slots (mark unavailable)
+        if (unbookedSlotsToExpire.length > 0) {
+          console.log(`Expiring ${unbookedSlotsToExpire.length} unbooked past slots`);
+          supabase
+            .from('expert_schedule')
+            .update({ is_available: false, booked_by: null })
+            .in('id', unbookedSlotsToExpire)
+            .then(({ error: updateError }) => {
+              if (updateError) {
+                console.error('Error expiring unbooked slots:', updateError);
+              } else {
+                console.log('Successfully expired unbooked past slots');
+              }
+            });
+        }
+
+        setAvailableTimeSlots(processedSlots);
+
+        if (!slots || slots.length === 0) {
+          Alert.alert('No Slots', 'This expert has not set up any time slots for the selected date. Please choose a different date or contact the expert.');
+        }
+      }
+    } catch (error) {
+      console.error('Error in loadAvailableTimeSlots:', error);
+      setAvailableTimeSlots([]);
+      Alert.alert('Error', 'An error occurred while loading time slots.');
+    } finally {
+      setLoadingTimeSlots(false);
+    }
+  };
+
   // Define available time slots
   const timeSlots = [
     '09:00 AM',
@@ -311,6 +425,45 @@ export default function StudentCalm() {
         if (isSessionBooked(selectedPsychologist, selectedDate, selectedTime)) {
           Alert.alert('Session Unavailable', 'This time slot is already booked. Please select a different time.');
           return;
+        }
+
+        // Check if slot start time is within 30 minutes from now
+        const now = new Date();
+        const slotDateTime = new Date(selectedDate);
+
+        // Parse time from "HH:MM AM/PM" format
+        const timeMatch = selectedTime.match(/(\d+):(\d+)\s*(AM|PM)/i);
+        if (timeMatch) {
+          let hours = parseInt(timeMatch[1]);
+          const minutes = parseInt(timeMatch[2]);
+          const period = timeMatch[3].toUpperCase();
+
+          if (period === 'PM' && hours !== 12) {
+            hours += 12;
+          } else if (period === 'AM' && hours === 12) {
+            hours = 0;
+          }
+
+          slotDateTime.setHours(hours, minutes, 0, 0);
+
+          // Calculate time difference in minutes
+          const timeDiffMs = slotDateTime.getTime() - now.getTime();
+          const timeDiffMinutes = Math.floor(timeDiffMs / (1000 * 60));
+
+          if (timeDiffMinutes < 30) {
+            if (timeDiffMinutes < 0) {
+              Alert.alert(
+                'Slot Expired',
+                'This time slot has already started or passed. Please select a different time.'
+              );
+            } else {
+              Alert.alert(
+                'Booking Not Allowed',
+                `You cannot book a session starting in less than 30 minutes.\n\nTime remaining: ${timeDiffMinutes} minute${timeDiffMinutes !== 1 ? 's' : ''}.\n\nPlease select a slot at least 30 minutes in advance.`
+              );
+            }
+            return;
+          }
         }
 
         // Find the selected expert details
@@ -795,14 +948,26 @@ export default function StudentCalm() {
         visible={showPsychologistModal}
         animationType="slide"
         transparent={true}
-        onRequestClose={() => setShowPsychologistModal(false)}
+        onRequestClose={() => {
+          setShowPsychologistModal(false);
+          setSelectedPsychologist(null);
+          setSelectedDate(null);
+          setSelectedTime(null);
+          setAvailableTimeSlots([]);
+        }}
       >
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Book Session with Psychologist</Text>
               <TouchableOpacity
-                onPress={() => setShowPsychologistModal(false)}
+                onPress={() => {
+                  setShowPsychologistModal(false);
+                  setSelectedPsychologist(null);
+                  setSelectedDate(null);
+                  setSelectedTime(null);
+                  setAvailableTimeSlots([]);
+                }}
                 style={styles.modalCloseButton}
               >
                 <Text style={styles.modalCloseText}>✕</Text>
@@ -824,7 +989,13 @@ export default function StudentCalm() {
                       styles.psychologistCard,
                       selectedPsychologist === (expert.registration_number || expert.id) && styles.selectedPsychologistCard
                     ]}
-                    onPress={() => setSelectedPsychologist(expert.registration_number || expert.id)}
+                    onPress={() => {
+                      setSelectedPsychologist(expert.registration_number || expert.id);
+                      // Reset date and time slots when changing expert
+                      setSelectedDate(null);
+                      setSelectedTime(null);
+                      setAvailableTimeSlots([]);
+                    }}
                   >
                     <View style={styles.psychologistInfo}>
                       <View style={styles.nameAndChatContainer}>
@@ -865,7 +1036,13 @@ export default function StudentCalm() {
                           styles.dateButton,
                           selectedDate === day.dateString && styles.selectedDateButton
                         ]}
-                        onPress={() => setSelectedDate(day.dateString)}
+                        onPress={() => {
+                          setSelectedDate(day.dateString);
+                          setSelectedTime(null); // Reset selected time
+                          if (selectedPsychologist) {
+                            loadAvailableTimeSlots(selectedPsychologist, day.dateString);
+                          }
+                        }}
                       >
                         <Text style={[
                           styles.dayName,
@@ -890,71 +1067,95 @@ export default function StudentCalm() {
                 <>
                   <Text style={styles.sectionTitle}>Available Time Slots</Text>
 
-                  {/* Legend */}
-                  <View style={styles.legendContainer}>
-                    <Text style={styles.legendTitle}>Status Legend:</Text>
-                    <View style={styles.legendRow}>
-                      <View style={styles.legendItem}>
-                        <View style={[styles.statusDot, { backgroundColor: '#4caf50' }]} />
-                        <Text style={styles.legendText}>Available</Text>
-                      </View>
-                      <View style={styles.legendItem}>
-                        <View style={[styles.statusDot, { backgroundColor: '#2196f3' }]} />
-                        <Text style={styles.legendText}>Selected</Text>
-                      </View>
-                      <View style={styles.legendItem}>
-                        <View style={[styles.statusDot, styles.bookedStatusDot, { backgroundColor: '#f44336' }]} />
-                        <Text style={styles.legendText}>Booked</Text>
-                      </View>
+                  {loadingTimeSlots ? (
+                    <Text style={styles.loadingText}>Loading time slots...</Text>
+                  ) : availableTimeSlots.length === 0 ? (
+                    <View style={styles.emptySlotContainer}>
+                      <Text style={styles.emptyText}>No time slots available for this date.</Text>
+                      <Text style={styles.emptySubText}>Please select a different date or contact the expert directly.</Text>
                     </View>
-                  </View>
-
-                  <View style={styles.timeSlotsContainer}>
-                    {timeSlots.map((time) => {
-                      const isBooked = isSessionBooked(selectedPsychologist, selectedDate, time);
-                      return (
-                        <TouchableOpacity
-                          key={time}
-                          style={[
-                            styles.timeSlot,
-                            isBooked && styles.bookedTimeSlot,
-                            selectedTime === time && styles.selectedTimeSlot,
-                            isBooked && { opacity: 0.5 }
-                          ]}
-                          onPress={() => {
-                            if (isBooked) {
-                              Alert.alert(
-                                'Session Unavailable',
-                                'This time slot is already booked. Please select a different time.',
-                                [{ text: 'OK' }]
-                              );
-                            } else {
-                              setSelectedTime(time);
-                            }
-                          }}
-                          disabled={isBooked}
-                        >
-                          <View style={styles.timeSlotContent}>
-                            <Text style={[
-                              styles.timeText,
-                              isBooked && styles.bookedTimeText,
-                              selectedTime === time && styles.selectedTimeText
-                            ]}>
-                              {time}
-                            </Text>
-                            <View style={[
-                              styles.statusDot,
-                              isBooked && styles.bookedStatusDot,
-                              { backgroundColor: isBooked ? '#f44336' : (selectedTime === time ? '#2196f3' : '#4caf50') }
-                            ]} />
-                            {isBooked && (
-                              <Text style={styles.bookedIndicatorText}>❌</Text>
-                            )}
+                  ) : (
+                    <>
+                      {/* Legend */}
+                      <View style={styles.legendContainer}>
+                        <Text style={styles.legendTitle}>Status Legend:</Text>
+                        <View style={styles.legendRow}>
+                          <View style={styles.legendItem}>
+                            <View style={[styles.statusDot, { backgroundColor: '#4caf50' }]} />
+                            <Text style={styles.legendText}>Available</Text>
                           </View>
-                        </TouchableOpacity>
-                      );
-                    })}
-                  </View>
+                          <View style={styles.legendItem}>
+                            <View style={[styles.statusDot, { backgroundColor: '#2196f3' }]} />
+                            <Text style={styles.legendText}>Selected</Text>
+                          </View>
+                          <View style={styles.legendItem}>
+                            <View style={[styles.statusDot, styles.bookedStatusDot, { backgroundColor: '#f44336' }]} />
+                            <Text style={styles.legendText}>Booked</Text>
+                          </View>
+                        </View>
+                      </View>
+
+                      <View style={styles.timeSlotsContainer}>
+                        {availableTimeSlots.map((slot) => {
+                          // Format time from database (HH:MM:SS to HH:MM AM/PM)
+                          const formatTime = (timeString: string) => {
+                            const [hours, minutes] = timeString.split(':');
+                            const hour = parseInt(hours);
+                            const ampm = hour >= 12 ? 'PM' : 'AM';
+                            const displayHour = hour > 12 ? hour - 12 : hour === 0 ? 12 : hour;
+                            return `${displayHour}:${minutes} ${ampm}`;
+                          };
+
+                          const timeDisplay = `${formatTime(slot.start_time)} - ${formatTime(slot.end_time)}`;
+                          const timeKey = formatTime(slot.start_time);
+                          const isSelected = selectedTime === timeKey;
+                          const isAvailable = slot.is_available;
+
+                          return (
+                            <TouchableOpacity
+                              key={slot.id}
+                              style={[
+                                styles.timeSlot,
+                                !isAvailable && styles.bookedTimeSlot,
+                                isSelected && styles.selectedTimeSlot,
+                                !isAvailable && { opacity: 0.6 }
+                              ]}
+                              onPress={() => {
+                                if (!isAvailable) {
+                                  Alert.alert(
+                                    'Slot Not Available',
+                                    'This time slot is already booked. Please select a different time.',
+                                    [{ text: 'OK' }]
+                                  );
+                                } else {
+                                  setSelectedTime(timeKey);
+                                }
+                              }}
+                              disabled={!isAvailable}
+                            >
+                              <View style={styles.timeSlotContent}>
+                                <Text style={[
+                                  styles.timeText,
+                                  !isAvailable && styles.bookedTimeText,
+                                  isSelected && styles.selectedTimeText
+                                ]}>
+                                  {timeDisplay}
+                                </Text>
+                                <View style={[
+                                  styles.statusDot,
+                                  !isAvailable && styles.bookedStatusDot,
+                                  { backgroundColor: !isAvailable ? '#f44336' : (isSelected ? '#2196f3' : '#4caf50') }
+                                ]} />
+                                {!isAvailable && (
+                                  <Text style={styles.bookedIndicatorText}>❌</Text>
+                                )}
+                              </View>
+                            </TouchableOpacity>
+                          );
+                        })}
+                      </View>
+                    </>
+                  )}
                 </>
               )}
 
@@ -1379,6 +1580,16 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginTop: 20,
     fontStyle: 'italic',
+  },
+  emptySlotContainer: {
+    padding: 20,
+    alignItems: 'center',
+  },
+  emptySubText: {
+    textAlign: 'center',
+    color: '#666',
+    fontSize: 14,
+    marginTop: 8,
   },
   selectedIcon: {
     fontSize: 20,
