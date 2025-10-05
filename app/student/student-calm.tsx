@@ -5,6 +5,14 @@ import { Alert, Image, Modal, ScrollView, StyleSheet, Text, TouchableOpacity, Vi
 import { Colors } from '../../constants/Colors';
 import { supabase } from '../../lib/supabase';
 
+// Helper function to format date to YYYY-MM-DD in local timezone (no UTC conversion)
+const formatDateToLocalString = (date: Date): string => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
 export default function StudentCalm() {
   const router = useRouter();
   const params = useLocalSearchParams<{ registration?: string }>();
@@ -245,22 +253,141 @@ export default function StudentCalm() {
   // Delete a session from history
   const deleteSession = async (sessionId: number) => {
     try {
-      const { error } = await supabase
+      // First, get the session details to check time and update expert_schedule if needed
+      const { data: sessionData, error: fetchError } = await supabase
         .from('book_request')
-        .delete()
-        .eq('id', sessionId);
+        .select('*')
+        .eq('id', sessionId)
+        .single();
 
-      if (error) {
-        console.error('Error deleting session:', error);
-        Alert.alert('Error', 'Failed to delete session. Please try again.');
-      } else {
-        Alert.alert('Success', 'Session deleted successfully.');
-        // Reload session history to reflect changes
-        loadSessionHistory();
+      if (fetchError) {
+        console.error('Error fetching session details:', fetchError);
+        Alert.alert('Error', 'Failed to fetch session details. Please try again.');
+        return;
       }
+
+      if (!sessionData) {
+        Alert.alert('Error', 'Session not found.');
+        return;
+      }
+
+      // Check if session is within 30 minutes
+      const now = new Date();
+      const sessionDate = new Date(sessionData.session_date);
+
+      // Parse session time
+      const timeMatch = sessionData.session_time?.match(/(\d+):(\d+)\s*(AM|PM)/i);
+      if (timeMatch) {
+        let hours = parseInt(timeMatch[1]);
+        const minutes = parseInt(timeMatch[2]);
+        const period = timeMatch[3].toUpperCase();
+
+        if (period === 'PM' && hours !== 12) {
+          hours += 12;
+        } else if (period === 'AM' && hours === 12) {
+          hours = 0;
+        }
+
+        sessionDate.setHours(hours, minutes, 0, 0);
+
+        // Calculate time difference in minutes
+        const timeDiffMs = sessionDate.getTime() - now.getTime();
+        const timeDiffMinutes = Math.floor(timeDiffMs / (1000 * 60));
+
+        // Check if session has already started or passed
+        if (timeDiffMinutes < 0) {
+          Alert.alert(
+            'Cannot Cancel',
+            'This session has already started or passed. You cannot cancel it now.'
+          );
+          return;
+        }
+
+        // Check if within 30 minutes
+        if (timeDiffMinutes < 30) {
+          Alert.alert(
+            'Cannot Cancel',
+            `You cannot cancel a session starting in less than 30 minutes.\n\nTime remaining: ${timeDiffMinutes} minute${timeDiffMinutes !== 1 ? 's' : ''}.\n\nCancellations must be made at least 30 minutes before the session.`
+          );
+          return;
+        }
+      }
+
+      // Confirm deletion
+      Alert.alert(
+        'Cancel Session',
+        `Are you sure you want to cancel this session?\n\nExpert: ${sessionData.expert_name}\nDate: ${new Date(sessionData.session_date).toLocaleDateString()}\nTime: ${sessionData.session_time}\nStatus: ${sessionData.status}`,
+        [
+          { text: 'No', style: 'cancel' },
+          {
+            text: 'Yes, Cancel',
+            style: 'destructive',
+            onPress: async () => {
+              // Delete the booking request
+              const { error: deleteError } = await supabase
+                .from('book_request')
+                .delete()
+                .eq('id', sessionId);
+
+              if (deleteError) {
+                console.error('Error deleting session:', deleteError);
+                Alert.alert('Error', 'Failed to cancel session. Please try again.');
+                return;
+              }
+
+              // If the session was approved, free the slot in expert_schedule
+              if (sessionData.status === 'approved') {
+                console.log('Freeing expert schedule slot for cancelled approved session');
+
+                // Convert time format from "HH:MM AM/PM" to "HH:MM:SS"
+                const convertTimeFormat = (timeStr: string): string => {
+                  const match = timeStr.match(/(\d+):(\d+)\s*(AM|PM)/i);
+                  if (!match) return timeStr;
+
+                  let hours = parseInt(match[1]);
+                  const minutes = match[2];
+                  const period = match[3].toUpperCase();
+
+                  if (period === 'PM' && hours !== 12) {
+                    hours += 12;
+                  } else if (period === 'AM' && hours === 12) {
+                    hours = 0;
+                  }
+
+                  return `${hours.toString().padStart(2, '0')}:${minutes}:00`;
+                };
+
+                const startTime = convertTimeFormat(sessionData.session_time);
+
+                // Update expert_schedule to free the slot
+                const { error: scheduleError } = await supabase
+                  .from('expert_schedule')
+                  .update({
+                    is_available: true,
+                    booked_by: null
+                  })
+                  .eq('expert_registration', sessionData.expert_registration)
+                  .eq('date', sessionData.session_date)
+                  .eq('start_time', startTime);
+
+                if (scheduleError) {
+                  console.error('Warning: Could not free schedule slot:', scheduleError);
+                  console.log('Session cancelled but schedule slot update failed');
+                } else {
+                  console.log('Successfully freed the time slot in expert schedule');
+                }
+              }
+
+              Alert.alert('✅ Success', 'Session cancelled successfully. The time slot has been freed for other students.');
+              // Reload session history to reflect changes
+              loadSessionHistory();
+            }
+          }
+        ]
+      );
     } catch (error) {
       console.error('Error in deleteSession:', error);
-      Alert.alert('Error', 'Failed to delete session. Please try again.');
+      Alert.alert('Error', 'Failed to cancel session. Please try again.');
     }
   };
 
@@ -399,7 +526,7 @@ export default function StudentCalm() {
       const date = new Date();
       date.setDate(date.getDate() + i);
       days.push({
-        dateString: date.toISOString().split('T')[0],
+        dateString: formatDateToLocalString(date),
         displayDate: date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
         dayName: date.toLocaleDateString('en-US', { weekday: 'short' })
     });
@@ -489,28 +616,64 @@ export default function StudentCalm() {
 
         console.log('Attempting to book session with data:', sessionRequestData);
 
-        // Guard: prevent more than 2 active sessions (pending or approved)
+        // Check for maximum active bookings (2 active sessions limit)
+        // Only count future sessions that are pending or approved
         try {
+          const currentTime = new Date();
+
           const { data: activeSessions, error: activeError } = await supabase
             .from('book_request')
-            .select('id,status,expert_registration,expert_name,session_date,session_time')
+            .select('id, status, expert_registration, expert_name, session_date, session_time')
             .eq('registration_number', studentInfo.registration)
             .in('status', ['pending', 'approved']);
 
           if (activeError) {
-            console.error('Active session check error:', activeError);
-            // Non-fatal: continue to server which will enforce as well
-          }
+            console.error('Error checking active sessions:', activeError);
+            // Continue anyway - server-side validation will catch it
+          } else if (activeSessions) {
+            // Filter out past sessions
+            const now = new Date();
+            const futureSessions = activeSessions.filter(session => {
+              const sessionDate = new Date(session.session_date);
 
-          if (activeSessions && activeSessions.length >= 2) {
-            Alert.alert(
-              'Maximum Sessions Reached',
-              `You already have ${activeSessions.length} active sessions. Please complete or cancel at least one before booking another.\n\nActive Sessions:\n${activeSessions.map((s, i) => `${i + 1}. ${s.expert_name} - ${s.status}`).join('\n')}`
-            );
-            return;
+              // Parse session time
+              const timeMatch = session.session_time?.match(/(\d+):(\d+)\s*(AM|PM)/i);
+              if (timeMatch) {
+                let hours = parseInt(timeMatch[1]);
+                const minutes = parseInt(timeMatch[2]);
+                const period = timeMatch[3].toUpperCase();
+
+                if (period === 'PM' && hours !== 12) {
+                  hours += 12;
+                } else if (period === 'AM' && hours === 12) {
+                  hours = 0;
+                }
+
+                sessionDate.setHours(hours, minutes, 0, 0);
+              }
+
+              // Only count future sessions
+              return sessionDate > now;
+            });
+
+            console.log(`Student has ${futureSessions.length} future active sessions out of ${activeSessions.length} total active bookings`);
+
+            if (futureSessions.length >= 2) {
+              const sessionList = futureSessions.map((s, i) =>
+                `${i + 1}. ${s.expert_name}\n   Date: ${new Date(s.session_date).toLocaleDateString()}\n   Time: ${s.session_time}\n   Status: ${s.status}`
+              ).join('\n\n');
+
+              Alert.alert(
+                '⚠️ Maximum Active Sessions',
+                `You can have a maximum of 2 active future sessions at a time.\n\nYou currently have ${futureSessions.length} active sessions:\n\n${sessionList}\n\nPlease wait for one session to complete or cancel it before booking another.`,
+                [{ text: 'OK', style: 'default' }]
+              );
+              return;
+            }
           }
         } catch (e) {
-          console.warn('Active session pre-check failed:', e);
+          console.warn('Error checking active sessions:', e);
+          // Continue anyway - non-critical check
         }
 
         // Save to Supabase book_request table

@@ -17,20 +17,24 @@ export default function Help() {
     setIsLoading(true);
     try {
       // Insert help message into the help table
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from('help')
         .insert([
           {
-            message: message,
+            message: message.trim(),
             created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
           }
-        ]);
+        ])
+        .select();
 
       if (error) {
         console.error('Error sending help message:', error);
-        Alert.alert('Error', 'Failed to send your message. Please try again.');
+        console.error('Error details:', error.message, error.details, error.hint);
+        Alert.alert('Error', `Failed to send your message: ${error.message}`);
       } else {
-        Alert.alert('Success', 'Your help request has been sent successfully!');
+        console.log('Help message sent successfully:', data);
+        Alert.alert('✅ Success', 'Your help request has been sent successfully!\n\nOur support team will review it shortly.');
         setMessage('');
       }
     } catch (error) {

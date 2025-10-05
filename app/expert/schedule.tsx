@@ -46,6 +46,14 @@ const generateDefaultSlots = (): Array<{ start: string; end: string }> => {
 
 const DEFAULT_SLOTS = generateDefaultSlots();
 
+// Helper function to format date to YYYY-MM-DD in local timezone (no UTC conversion)
+const formatDateToLocalString = (date: Date): string => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
 export default function ExpertSchedulePage() {
   const router = useRouter();
   const [expertName, setExpertName] = useState('');
@@ -96,8 +104,8 @@ export default function ExpertSchedulePage() {
         .from('expert_schedule')
         .select('*')
         .eq('expert_registration', expertRegNo)
-        .gte('date', startOfMonth.toISOString().split('T')[0])
-        .lte('date', endOfMonth.toISOString().split('T')[0]);
+        .gte('date', formatDateToLocalString(startOfMonth))
+        .lte('date', formatDateToLocalString(endOfMonth));
 
       if (error) {
         console.error('Error loading schedules:', error);
@@ -120,7 +128,7 @@ export default function ExpertSchedulePage() {
   const loadSlotsForDate = async (date: Date) => {
     setLoading(true);
     try {
-      const dateString = date.toISOString().split('T')[0];
+      const dateString = formatDateToLocalString(date);
       const { data, error } = await supabase
         .from('expert_schedule')
         .select('*')
@@ -147,7 +155,7 @@ export default function ExpertSchedulePage() {
     await loadSlotsForDate(date);
 
     // Auto-add default slots if no slots exist for this date
-    const dateString = date.toISOString().split('T')[0];
+    const dateString = formatDateToLocalString(date);
     const existingSlots = allSchedules.get(dateString);
 
     if (!existingSlots || existingSlots.length === 0) {
@@ -207,7 +215,7 @@ export default function ExpertSchedulePage() {
           onPress: async () => {
             setLoading(true);
             try {
-              const dateString = selectedDate.toISOString().split('T')[0];
+              const dateString = formatDateToLocalString(selectedDate);
               const slotToAdd = {
                 expert_registration: expertRegNo,
                 expert_name: expertName,
@@ -262,7 +270,7 @@ export default function ExpertSchedulePage() {
           onPress: async () => {
             setLoading(true);
             try {
-              const dateString = selectedDate.toISOString().split('T')[0];
+              const dateString = formatDateToLocalString(selectedDate);
               const slotsToAdd = DEFAULT_SLOTS.map(slot => ({
                 expert_registration: expertRegNo,
                 expert_name: expertName,
