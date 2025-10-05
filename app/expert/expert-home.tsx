@@ -1207,7 +1207,7 @@ export default function ExpertHome() {
                         } else {
                           // Mobile platform - use FileSystem to read as base64 then convert
                           const base64 = await FileSystem.readAsStringAsync(fileUri, {
-                            encoding: FileSystem.EncodingType.Base64,
+                            encoding: 'base64',
                           });
 
                           // Convert base64 to Uint8Array
