@@ -24,17 +24,21 @@ export default function SupportPage() {
         <View style={{ flexDirection: 'row', justifyContent: 'center', width: '100%', marginTop: 10, paddingHorizontal: 10 }}>
           <TouchableOpacity style={styles.supportButton} onPress={() => Linking.openURL('https://sgtuniversity.knimbus.com/user#/')}>
             <Image source={require('../../assets/images/elibrary.png')} style={styles.supportButtonIcon} resizeMode="contain" />
+            <Text style={styles.supportButtonText}>E Library</Text>
           </TouchableOpacity>
           <TouchableOpacity style={styles.supportButton} onPress={() => router.push('./emergency')}>
             <Image source={require('../../assets/images/sos.png')} style={styles.supportButtonIcon} resizeMode="contain" />
+            <Text style={styles.supportButtonText}>SOS</Text>
           </TouchableOpacity>
         </View>
         <View style={{ flexDirection: 'row', justifyContent: 'center', width: '100%', marginTop: 10, paddingHorizontal: 10 }}>
           <TouchableOpacity style={styles.supportButton} onPress={() => router.push('./learning')}>
             <Image source={require('../../assets/images/learning support.png')} style={styles.supportButtonIcon} resizeMode="contain" />
+            <Text style={styles.supportButtonText}>Learning Support</Text>
           </TouchableOpacity>
           <TouchableOpacity style={styles.supportButton} onPress={() => router.push('./mood-playlists')}>
             <Image source={require('../../assets/images/mood playlist.png')} style={styles.supportButtonIcon} resizeMode="contain" />
+            <Text style={styles.supportButtonText}>Mood Playlist</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -105,7 +109,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
   },
   supportButton: {
-    width: '45%',
+    width: '35%',
     height: 120,
     borderRadius: 25,
     justifyContent: 'center',
@@ -123,16 +127,18 @@ const styles = StyleSheet.create({
     padding: 10,
   },
   supportButtonIcon: {
-    width: '100%',
-    height: '100%',
+    width: '60%',
+    height: '60%',
     maxWidth: 100,
     maxHeight: 100,
+    marginBottom: 8,
   },
   supportButtonText: {
     color: Colors.primary,
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: 'bold',
     textAlign: 'center',
+    marginTop: 4,
   },
   infoSection: {
     backgroundColor: 'rgba(255, 255, 255, 0.95)',
