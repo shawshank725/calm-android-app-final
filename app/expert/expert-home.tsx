@@ -1,6 +1,8 @@
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { toByteArray } from 'base64-js';
 import * as DocumentPicker from 'expo-document-picker';
+import * as FileSystem from 'expo-file-system';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
@@ -689,14 +691,14 @@ export default function ExpertHome() {
       if (!result.canceled && result.assets && result.assets.length > 0) {
         const file = result.assets[0];
 
-        // Check file size (max 50MB for videos, 10MB for others)
+        // Check file size (max 200MB for videos, 100MB for others)
         const isVideo = file.mimeType?.startsWith('video/');
-        const maxSize = isVideo ? 50 * 1024 * 1024 : 10 * 1024 * 1024;
+        const maxSize = isVideo ? 200 * 1024 * 1024 : 100 * 1024 * 1024;
 
         if (file.size && file.size > maxSize) {
           Alert.alert(
             'File Too Large',
-            `Please select a ${isVideo ? 'video' : 'file'} smaller than ${isVideo ? '50MB' : '10MB'}.`
+            `Please select a ${isVideo ? 'video' : 'file'} smaller than ${isVideo ? '200MB' : '100MB'}.`
           );
           return;
         }
@@ -716,171 +718,125 @@ export default function ExpertHome() {
   };
 
   const handleFileUpload = async () => {
+    // Validate inputs
     if (!uploadForm.title.trim()) {
-      Alert.alert('Error', 'Please enter a title for the resource');
+      Alert.alert('Error', 'Please enter a title');
       return;
     }
 
     if (!uploadForm.description.trim()) {
-      Alert.alert('Error', 'Please enter a description for the resource');
+      Alert.alert('Error', 'Please enter a description');
       return;
     }
 
     if (!selectedFile) {
-      Alert.alert('Error', 'Please select a file to upload');
+      Alert.alert('Error', 'Please select a file');
       return;
     }
 
     try {
       setUploadLoading(true);
-      setUploadStatus('Preparing file...');
-      setUploadProgress(10);
-
-      // Create unique filename with timestamp
-      const timestamp = Date.now();
-      const fileExtension = selectedFile.name.split('.').pop();
-      const uniqueFileName = `${expertRegNo}/${timestamp}.${fileExtension}`;
-
-      setUploadProgress(25);
       setUploadStatus('Reading file...');
+      setUploadProgress(20);
 
-      // Read file using Expo FileSystem (more reliable for local files)
-      let fileData: string;
-      try {
-        fileData = await FileSystem.readAsStringAsync(selectedFile.uri, {
-          encoding: FileSystem.EncodingType.Base64,
-        });
-      } catch (readError) {
-        console.error('File read error:', readError);
-        Alert.alert('Error', 'Could not read the selected file. Please try selecting it again.');
-        setUploadStatus('');
-        setUploadProgress(0);
-        return;
-      }
+      // Step 1: Read file as base64
+      const base64Data = await FileSystem.readAsStringAsync(selectedFile.uri, {
+        encoding: FileSystem.EncodingType.Base64,
+      });
 
       setUploadProgress(40);
-      setUploadStatus('Uploading to cloud storage...');
+      setUploadStatus('Converting file...');
 
-      // Convert base64 string to Uint8Array for upload
-      const binaryString = atob(fileData);
-      const bytes = new Uint8Array(binaryString.length);
-      for (let i = 0; i < binaryString.length; i++) {
-        bytes[i] = binaryString.charCodeAt(i);
-      }
+      // Step 2: Convert base64 to bytes
+      const fileBytes = toByteArray(base64Data);
 
-      // Upload file to Supabase Storage 'resources' bucket
-      const { data: uploadData, error: uploadError } = await supabase.storage
+      setUploadProgress(50);
+      setUploadStatus('Uploading to storage...');
+
+      // Step 3: Create unique filename
+      const timestamp = Date.now();
+      const fileExtension = selectedFile.name.split('.').pop() || 'file';
+      const storagePath = `${expertRegNo}/${timestamp}.${fileExtension}`;
+
+      // Step 4: Upload to Supabase Storage 'resources' bucket
+      const { error: uploadError } = await supabase.storage
         .from('resources')
-        .upload(uniqueFileName, bytes, {
+        .upload(storagePath, fileBytes, {
           contentType: selectedFile.mimeType || 'application/octet-stream',
-          upsert: false
+          upsert: false,
         });
 
       if (uploadError) {
-        console.error('Storage upload error:', uploadError);
-        setUploadStatus('');
-        setUploadProgress(0);
-
-        // Check if bucket doesn't exist
-        if (uploadError.message.includes('Bucket not found') || uploadError.message.includes('bucket')) {
-          Alert.alert(
-            'Storage Not Configured',
-            'The "resources" storage bucket needs to be created in Supabase.\n\nPlease ask your administrator to:\n1. Go to Supabase Dashboard\n2. Navigate to Storage\n3. Create a bucket named "resources"\n4. Set it to Public\n5. Configure appropriate policies',
-            [{ text: 'OK' }]
-          );
-        } else {
-          Alert.alert('Upload Failed', `Failed to upload file to storage: ${uploadError.message}`);
-        }
-        return;
+        throw new Error(`Storage upload failed: ${uploadError.message}`);
       }
 
-      setUploadProgress(60);
+      setUploadProgress(70);
       setUploadStatus('Getting file URL...');
 
-      // Get public URL for the uploaded file
+      // Step 5: Get public URL
       const { data: urlData } = supabase.storage
         .from('resources')
-        .getPublicUrl(uniqueFileName);
+        .getPublicUrl(storagePath);
 
-      if (!urlData || !urlData.publicUrl) {
-        throw new Error('Failed to get public URL for uploaded file');
+      if (!urlData?.publicUrl) {
+        throw new Error('Failed to get file URL');
       }
-
-      setUploadProgress(75);
-      setUploadStatus('Saving to database...');
-
-      // Determine file type category based on mime type
-      let fileCategory = uploadForm.category.toUpperCase();
-      if (selectedFile.mimeType?.startsWith('video/')) {
-        fileCategory = 'VIDEOS';
-      } else if (selectedFile.mimeType?.startsWith('audio/')) {
-        fileCategory = 'AUDIO';
-      } else if (selectedFile.mimeType?.startsWith('image/')) {
-        fileCategory = 'IMAGES';
-      } else if (selectedFile.mimeType?.includes('pdf')) {
-        fileCategory = 'DOCUMENTS';
-      }
-
-      // Create resource data matching library table schema
-      const resourceData = {
-        resource_title: uploadForm.title,
-        description: uploadForm.description,
-        file_url: urlData.publicUrl, // Cloud storage URL
-        category: fileCategory,
-        file_type: selectedFile.mimeType || null,
-      };
 
       setUploadProgress(85);
+      setUploadStatus('Saving to database...');
 
-      // Insert into library table
-      const { data, error } = await supabase
+      // Step 6: Determine category
+      let category = 'DOCUMENTS';
+      if (selectedFile.mimeType?.startsWith('video/')) {
+        category = 'VIDEOS';
+      } else if (selectedFile.mimeType?.startsWith('audio/')) {
+        category = 'AUDIO';
+      } else if (selectedFile.mimeType?.startsWith('image/')) {
+        category = 'IMAGES';
+      }
+
+      // Step 7: Insert into library table
+      const { error: dbError } = await supabase
         .from('library')
-        .insert([resourceData])
-        .select()
-        .single();
+        .insert({
+          resource_title: uploadForm.title,
+          description: uploadForm.description,
+          file_url: urlData.publicUrl,
+          category: category,
+          file_type: selectedFile.mimeType,
+        });
 
-      if (error) {
-        console.error('Database insert error:', error);
-        setUploadStatus('');
-        setUploadProgress(0);
-
-        // If table doesn't exist, show helpful message
-        if (error.code === '42P01') {
-          Alert.alert(
-            'Database Table Missing',
-            'The "library" table needs to be created in your Supabase database.\n\nPlease contact your administrator to set up the required database schema.',
-            [{ text: 'OK' }]
-          );
-        } else {
-          Alert.alert('Upload Failed', `Failed to save resource to database: ${error.message}\n\nPlease try again.`);
-        }
-
-        // Clean up uploaded file if database insert fails
-        try {
-          await supabase.storage.from('resources').remove([uniqueFileName]);
-        } catch (cleanupError) {
-          console.error('Cleanup error:', cleanupError);
-        }
-        return;
+      if (dbError) {
+        // Clean up uploaded file
+        await supabase.storage.from('resources').remove([storagePath]);
+        throw new Error(`Database error: ${dbError.message}`);
       }
 
       setUploadProgress(100);
-      setUploadStatus('Upload complete!');
+      setUploadStatus('Complete!');
 
-      // Wait a moment to show completion
-      await new Promise(resolve => setTimeout(resolve, 500));
+      // Success - wait briefly then show success message
+      await new Promise(resolve => setTimeout(resolve, 300));
 
-      const fileSizeMB = ((selectedFile.size || 0) / 1024 / 1024).toFixed(2);
+      const fileSize = selectedFile.size
+        ? `${(selectedFile.size / 1024 / 1024).toFixed(2)} MB`
+        : 'Unknown size';
+
       Alert.alert(
-        '✅ Upload Successful!',
-        `${uploadForm.title}\n\nFile: ${selectedFile.name}\nSize: ${fileSizeMB} MB\nCategory: ${fileCategory}\n\nThis resource has been uploaded to the library and is now available for students to access.\n\nFile URL: ${urlData.publicUrl}`,
+        '✅ Upload Successful',
+        `${uploadForm.title}\n\nFile: ${selectedFile.name}\nSize: ${fileSize}\nCategory: ${category}\n\nResource is now available in the library!`,
         [
           {
             text: 'OK',
             onPress: () => {
+              // Reset form
               setShowUploadModal(false);
               setSelectedFile(null);
-              setUploadForm({ title: '', description: '', category: 'Academic Resources' });
+              setUploadForm({
+                title: '',
+                description: '',
+                category: 'Academic Resources'
+              });
               setUploadStatus('');
               setUploadProgress(0);
             }
@@ -893,18 +849,15 @@ export default function ExpertHome() {
       setUploadStatus('');
       setUploadProgress(0);
 
-      if (error instanceof Error) {
-        // Provide more specific error messages
-        if (error.message.includes('fetch')) {
-          Alert.alert('Upload Failed', 'Could not read the selected file. Please try selecting the file again.');
-        } else if (error.message.includes('Network')) {
-          Alert.alert('Upload Failed', 'Network error. Please check your internet connection and try again.');
-        } else {
-          Alert.alert('Upload Failed', `Error: ${error.message}`);
-        }
-      } else {
-        Alert.alert('Upload Failed', 'There was an unexpected error uploading the file. Please try again.');
-      }
+      const errorMessage = error instanceof Error
+        ? error.message
+        : 'Unknown error occurred';
+
+      Alert.alert(
+        'Upload Failed',
+        `Could not upload file.\n\n${errorMessage}\n\nPlease check:\n• Internet connection\n• File is not corrupted\n• Storage bucket "resources" exists in Supabase`,
+        [{ text: 'OK' }]
+      );
     } finally {
       setUploadLoading(false);
     }
@@ -1311,7 +1264,7 @@ export default function ExpertHome() {
                   </TouchableOpacity>
                 )}
                 <Text style={styles.fileUploadHint}>
-                  Supported: Photos (JPG, PNG, HEIC), Videos (MP4, MOV), PDFs • Max: 10MB (50MB for videos)
+                  Supported: Photos (JPG, PNG, HEIC), Videos (MP4, MOV), PDFs • Max: 100MB (200MB for videos)
                 </Text>
               </View>
             </ScrollView>
@@ -1328,181 +1281,7 @@ export default function ExpertHome() {
 
               <TouchableOpacity
                 style={[styles.modalUploadButton, uploadLoading && styles.modalUploadButtonDisabled]}
-                onPress={async () => {
-                    const uri = selectedFile?.uri;
-                    let output_path = "";
-
-                    if (!uri) {
-                      Alert.alert("No file selected.");
-                      return;
-                    }
-
-                    // Function to upload file to Supabase storage
-                    const uploadFile = async (fileUri: string): Promise<string | null> => {
-                      try {
-                        const fileName = selectedFile?.name || `file_${Date.now()}`;
-                        const fileExt = fileName.split('.').pop();
-                        const filePath = `${expertRegNo}/${Date.now()}.${fileExt}`;
-
-                        // Use fetch to get file data (works for both web and mobile)
-                        const response = await fetch(fileUri);
-                        const fileData = await response.blob();
-
-                        // Upload to Supabase storage
-                        const { data, error } = await supabase.storage
-                          .from('resources')
-                          .upload(filePath, fileData, {
-                            contentType: selectedFile?.mimeType || 'application/octet-stream',
-                            upsert: false
-                          });
-
-                        if (error) {
-                          console.error('Upload error:', error);
-                          throw error;
-                        }
-
-                        // Get public URL
-                        const { data: { publicUrl } } = supabase.storage
-                          .from('resources')
-                          .getPublicUrl(filePath);
-
-                        return publicUrl;
-                      } catch (error) {
-                        console.error('Error uploading file:', error);
-                        throw error; // Re-throw to be caught by outer try-catch
-                      }
-                    };
-
-                    try {
-                      setUploadLoading(true);
-                      setUploadProgress(0);
-                      setUploadStatus('Preparing file...');
-
-                      // Start animations
-                      Animated.loop(
-                        Animated.sequence([
-                          Animated.timing(pulseAnim, {
-                            toValue: 1.1,
-                            duration: 800,
-                            easing: Easing.inOut(Easing.ease),
-                            useNativeDriver: true,
-                          }),
-                          Animated.timing(pulseAnim, {
-                            toValue: 1,
-                            duration: 800,
-                            easing: Easing.inOut(Easing.ease),
-                            useNativeDriver: true,
-                          }),
-                        ])
-                      ).start();
-
-                      Animated.loop(
-                        Animated.timing(spinAnim, {
-                          toValue: 1,
-                          duration: 2000,
-                          easing: Easing.linear,
-                          useNativeDriver: true,
-                        })
-                      ).start();
-
-                      // Simulate progress for file preparation
-                      setUploadProgress(10);
-                      Animated.timing(progressAnim, {
-                        toValue: 10,
-                        duration: 300,
-                        useNativeDriver: false,
-                      }).start();
-
-                      await new Promise(resolve => setTimeout(resolve, 300));
-
-                      // Upload file
-                      setUploadStatus('Uploading to cloud...');
-                      setUploadProgress(30);
-                      Animated.timing(progressAnim, {
-                        toValue: 30,
-                        duration: 400,
-                        useNativeDriver: false,
-                      }).start();
-
-                      const path = await uploadFile(uri);
-                      console.log("OUTPUT PATH - ", path);
-                      output_path = path || "";
-
-                      setUploadProgress(70);
-                      Animated.timing(progressAnim, {
-                        toValue: 70,
-                        duration: 400,
-                        useNativeDriver: false,
-                      }).start();
-
-                      // Save to database
-                      setUploadStatus('Saving resource details...');
-                      const resourceDataToBeUploaded = {
-                        resource_title: uploadForm.title,
-                        description: uploadForm.description,
-                        file_url: output_path,
-                        category: uploadForm.category.toUpperCase().replace(" ", "_"),
-                      };
-
-                      setUploadProgress(85);
-                      Animated.timing(progressAnim, {
-                        toValue: 85,
-                        duration: 300,
-                        useNativeDriver: false,
-                      }).start();
-
-                      const {data, error} = await supabase.from("library").insert(resourceDataToBeUploaded);
-                      console.log("DATA - ", data);
-                      console.log("ERROR - ", error);
-
-                      if (error) {
-                        throw error;
-                      }
-
-                      // Complete
-                      setUploadStatus('Upload complete!');
-                      setUploadProgress(100);
-                      Animated.timing(progressAnim, {
-                        toValue: 100,
-                        duration: 300,
-                        useNativeDriver: false,
-                      }).start();
-
-                      await new Promise(resolve => setTimeout(resolve, 500));
-
-                      Alert.alert(
-                        '✅ Upload Successful!',
-                        `${uploadForm.title} has been uploaded successfully and is now available to students.`,
-                        [{
-                          text: 'OK',
-                          onPress: () => {
-                            setShowUploadModal(false);
-                            setSelectedFile(null);
-                            setUploadForm({ title: '', description: '', category: 'REMEMBER BETTER' });
-                            setUploadProgress(0);
-                            setUploadStatus('');
-                            progressAnim.setValue(0);
-                            pulseAnim.setValue(1);
-                            spinAnim.setValue(0);
-                          }
-                        }]
-                      );
-                    } catch (err) {
-                      console.log("Upload failed:", err);
-                      const errorMessage = err instanceof Error ? err.message : 'Unknown error occurred';
-                      Alert.alert(
-                        'Upload Failed',
-                        `There was an error uploading the file.\n\nError: ${errorMessage}\n\nPlease check:\n• Internet connection\n• File size (max 50MB for videos, 10MB for others)\n• Supabase storage bucket exists`
-                      );
-                      setUploadProgress(0);
-                      setUploadStatus('');
-                      progressAnim.setValue(0);
-                      pulseAnim.setValue(1);
-                      spinAnim.setValue(0);
-                    } finally {
-                      setUploadLoading(false);
-                    }
-                  }}
+                onPress={handleFileUpload}
                 disabled={uploadLoading || !selectedFile || !uploadForm.title.trim() || !uploadForm.description.trim()}
                 activeOpacity={0.3}
                 delayPressIn={0}
