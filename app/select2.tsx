@@ -1,7 +1,7 @@
 import { useFonts } from 'expo-font';
 import { router } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { Animated, Image, Modal, Pressable, Text, TouchableOpacity, View } from 'react-native';
+import { Animated, Modal, Pressable, Text, TouchableOpacity, View } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
 import { Colors } from '../constants/Colors';
 import { globalStyles } from '../constants/GlobalStyles';
@@ -90,7 +90,6 @@ export default function SelectPage() {
 
       {/* Logo placed above the LogIn text */}
       <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', paddingVertical: 40 }}>
-        <Image source={require('../assets/images/logo2.png')} style={{ width: 220, height: 170, marginBottom: 12, transform: [{ translateY: -10 }] }} />
         <Text style={[globalStyles.title, { fontSize: 50, color: Colors.white, marginBottom: 40, fontWeight: 'bold', fontFamily: 'Tinos', textShadowColor: Colors.black, textShadowOffset: { width: 3, height: 3 }, textShadowRadius: 3 }]}>
           Sign up
         </Text>

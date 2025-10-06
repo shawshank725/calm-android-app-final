@@ -194,15 +194,15 @@ export default function ExpertHome() {
                 await AsyncStorage.setItem('currentExpertName', expertUserData.user_name);
               }
 
-              // Set expert profile data
+              // Set expert profile data using only available columns
               setExpertProfile({
-                specialization: expertUserData.specialization || expertUserData.course || 'Mental Health Expert',
-                experience: expertUserData.experience || '5+ years',
-                qualifications: expertUserData.qualifications || 'Licensed Professional',
-                bio: expertUserData.bio || `Expert specializing in ${expertUserData.specialization || 'Mental Health'}`,
+                specialization: expertUserData.course || 'Mental Health Expert',
+                experience: '5+ years',
+                qualifications: 'Licensed Professional',
+                bio: `Expert specializing in ${expertUserData.course || 'Mental Health'}`,
                 email: expertUserData.email || '',
                 phone: expertUserData.phone || '',
-                rating: expertUserData.rating ? expertUserData.rating.toString() : '4.8'
+                rating: '4.8'
               });
             }
           } catch (dbError) {
@@ -308,23 +308,37 @@ export default function ExpertHome() {
     try {
       setSendingNotification(true);
 
+      // Prepare notification data matching the database schema
+      const notificationData = {
+        sender_id: expertRegNo,
+        sender_name: expertName,
+        sender_type: 'expert',
+        recipient_type: notificationForm.recipient_type,
+        recipient_id: notificationForm.recipient_type === 'all' ? null : notificationForm.recipient_type,
+        title: notificationForm.title,
+        message: notificationForm.message,
+        priority: notificationForm.priority,
+        is_read: false,
+        is_archived: false,
+        metadata: {},
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        read_at: null,
+      };
+
       const { data, error } = await supabase
         .from('notifications')
-        .insert({
-          sender_id: expertRegNo,
-          sender_name: expertName,
-          sender_type: 'expert',
-          recipient_type: notificationForm.recipient_type,
-          title: notificationForm.title,
-          message: notificationForm.message,
-          priority: notificationForm.priority,
-        });
+        .insert([notificationData])
+        .select();
 
       if (error) {
+        console.error('Notification insert error:', error);
         throw error;
       }
 
-      Alert.alert('Success', 'Notification sent successfully!');
+      Alert.alert('✅ Success', `Notification sent successfully to ${notificationForm.recipient_type === 'all' ? 'all students' : 'selected recipients'}!`);
+
+      // Reset form
       setNotificationForm({
         title: '',
         message: '',
@@ -338,7 +352,12 @@ export default function ExpertHome() {
       await loadNotifications();
     } catch (error) {
       console.error('Error sending notification:', error);
-      Alert.alert('Error', 'Failed to send notification. Please try again.');
+
+      if (error instanceof Error) {
+        Alert.alert('Error', `Failed to send notification: ${error.message}`);
+      } else {
+        Alert.alert('Error', 'Failed to send notification. Please try again.');
+      }
     } finally {
       setSendingNotification(false);
     }
@@ -346,9 +365,15 @@ export default function ExpertHome() {
 
   const markNotificationAsRead = async (notificationId: string) => {
     try {
+      const now = new Date().toISOString();
+
       const { error } = await supabase
         .from('notifications')
-        .update({ is_read: true })
+        .update({
+          is_read: true,
+          read_at: now,
+          updated_at: now
+        })
         .eq('id', notificationId);
 
       if (error) {
@@ -360,7 +385,7 @@ export default function ExpertHome() {
       setNotifications(prev =>
         prev.map(notification =>
           notification.id === notificationId
-            ? { ...notification, is_read: true }
+            ? { ...notification, is_read: true, read_at: now, updated_at: now }
             : notification
         )
       );
@@ -373,9 +398,15 @@ export default function ExpertHome() {
 
   const markAllNotificationsAsRead = async () => {
     try {
+      const now = new Date().toISOString();
+
       const { error } = await supabase
         .from('notifications')
-        .update({ is_read: true })
+        .update({
+          is_read: true,
+          read_at: now,
+          updated_at: now
+        })
         .or(`recipient_id.eq.${expertRegNo},recipient_type.eq.all,recipient_type.eq.expert`)
         .eq('is_read', false);
 
@@ -386,7 +417,12 @@ export default function ExpertHome() {
 
       // Update local state
       setNotifications(prev =>
-        prev.map(notification => ({ ...notification, is_read: true }))
+        prev.map(notification => ({
+          ...notification,
+          is_read: true,
+          read_at: now,
+          updated_at: now
+        }))
       );
       setUnreadCount(0);
     } catch (error) {
@@ -697,49 +733,147 @@ export default function ExpertHome() {
 
     try {
       setUploadLoading(true);
+      setUploadStatus('Preparing file...');
+      setUploadProgress(10);
 
-      // Create resource data for database
+      // Create unique filename with timestamp
+      const timestamp = Date.now();
+      const fileExtension = selectedFile.name.split('.').pop();
+      const uniqueFileName = `${expertRegNo}/${timestamp}.${fileExtension}`;
+
+      setUploadProgress(25);
+      setUploadStatus('Reading file...');
+
+      // Read file using Expo FileSystem (more reliable for local files)
+      let fileData: string;
+      try {
+        fileData = await FileSystem.readAsStringAsync(selectedFile.uri, {
+          encoding: FileSystem.EncodingType.Base64,
+        });
+      } catch (readError) {
+        console.error('File read error:', readError);
+        Alert.alert('Error', 'Could not read the selected file. Please try selecting it again.');
+        setUploadStatus('');
+        setUploadProgress(0);
+        return;
+      }
+
+      setUploadProgress(40);
+      setUploadStatus('Uploading to cloud storage...');
+
+      // Convert base64 string to Uint8Array for upload
+      const binaryString = atob(fileData);
+      const bytes = new Uint8Array(binaryString.length);
+      for (let i = 0; i < binaryString.length; i++) {
+        bytes[i] = binaryString.charCodeAt(i);
+      }
+
+      // Upload file to Supabase Storage 'resources' bucket
+      const { data: uploadData, error: uploadError } = await supabase.storage
+        .from('resources')
+        .upload(uniqueFileName, bytes, {
+          contentType: selectedFile.mimeType || 'application/octet-stream',
+          upsert: false
+        });
+
+      if (uploadError) {
+        console.error('Storage upload error:', uploadError);
+        setUploadStatus('');
+        setUploadProgress(0);
+
+        // Check if bucket doesn't exist
+        if (uploadError.message.includes('Bucket not found') || uploadError.message.includes('bucket')) {
+          Alert.alert(
+            'Storage Not Configured',
+            'The "resources" storage bucket needs to be created in Supabase.\n\nPlease ask your administrator to:\n1. Go to Supabase Dashboard\n2. Navigate to Storage\n3. Create a bucket named "resources"\n4. Set it to Public\n5. Configure appropriate policies',
+            [{ text: 'OK' }]
+          );
+        } else {
+          Alert.alert('Upload Failed', `Failed to upload file to storage: ${uploadError.message}`);
+        }
+        return;
+      }
+
+      setUploadProgress(60);
+      setUploadStatus('Getting file URL...');
+
+      // Get public URL for the uploaded file
+      const { data: urlData } = supabase.storage
+        .from('resources')
+        .getPublicUrl(uniqueFileName);
+
+      if (!urlData || !urlData.publicUrl) {
+        throw new Error('Failed to get public URL for uploaded file');
+      }
+
+      setUploadProgress(75);
+      setUploadStatus('Saving to database...');
+
+      // Determine file type category based on mime type
+      let fileCategory = uploadForm.category.toUpperCase();
+      if (selectedFile.mimeType?.startsWith('video/')) {
+        fileCategory = 'VIDEOS';
+      } else if (selectedFile.mimeType?.startsWith('audio/')) {
+        fileCategory = 'AUDIO';
+      } else if (selectedFile.mimeType?.startsWith('image/')) {
+        fileCategory = 'IMAGES';
+      } else if (selectedFile.mimeType?.includes('pdf')) {
+        fileCategory = 'DOCUMENTS';
+      }
+
+      // Create resource data matching library table schema
       const resourceData = {
-        title: uploadForm.title,
+        resource_title: uploadForm.title,
         description: uploadForm.description,
-        file_url: selectedFile.uri, // In production, this would be the cloud storage URL after upload
-        file_name: selectedFile.name,
-        file_type: selectedFile.mimeType || 'application/octet-stream',
-        file_size: selectedFile.size || 0,
-        uploaded_by: expertRegNo,
-        uploaded_by_name: expertName,
-        uploaded_by_type: 'expert',
-        category: uploadForm.category,
-        tags: [uploadForm.category.toLowerCase()],
-        download_count: 0,
-        created_at: new Date().toISOString(),
+        file_url: urlData.publicUrl, // Cloud storage URL
+        category: fileCategory,
+        file_type: selectedFile.mimeType || null,
       };
 
-      // Insert into learning_resources table
+      setUploadProgress(85);
+
+      // Insert into library table
       const { data, error } = await supabase
-        .from('learning_resources')
+        .from('library')
         .insert([resourceData])
         .select()
         .single();
 
       if (error) {
         console.error('Database insert error:', error);
+        setUploadStatus('');
+        setUploadProgress(0);
+
         // If table doesn't exist, show helpful message
         if (error.code === '42P01') {
           Alert.alert(
-            'Database Setup Required',
-            'The learning_resources table needs to be created in Supabase. Please contact your administrator to set up the database schema.',
+            'Database Table Missing',
+            'The "library" table needs to be created in your Supabase database.\n\nPlease contact your administrator to set up the required database schema.',
             [{ text: 'OK' }]
           );
         } else {
-          Alert.alert('Upload Failed', 'Failed to save resource to database. Please try again.');
+          Alert.alert('Upload Failed', `Failed to save resource to database: ${error.message}\n\nPlease try again.`);
+        }
+
+        // Clean up uploaded file if database insert fails
+        try {
+          await supabase.storage.from('resources').remove([uniqueFileName]);
+        } catch (cleanupError) {
+          console.error('Cleanup error:', cleanupError);
         }
         return;
       }
 
+      setUploadProgress(100);
+      setUploadStatus('Upload complete!');
+
+      // Wait a moment to show completion
+      await new Promise(resolve => setTimeout(resolve, 500));
+
+      const fileSizeMB = ((selectedFile.size || 0) / 1024 / 1024).toFixed(2);
       Alert.alert(
-        'Upload Successful!',
-        `${uploadForm.title} (${selectedFile.name}) has been uploaded successfully and is now available to students in the Learning Support section. Students will see this resource immediately.`,
+        '✅ Upload Successful!',
+        `${uploadForm.title}\n\nFile: ${selectedFile.name}\nSize: ${fileSizeMB} MB\nCategory: ${fileCategory}\n\nThis resource has been uploaded to the library and is now available for students to access.\n\nFile URL: ${urlData.publicUrl}`,
         [
           {
             text: 'OK',
@@ -747,6 +881,8 @@ export default function ExpertHome() {
               setShowUploadModal(false);
               setSelectedFile(null);
               setUploadForm({ title: '', description: '', category: 'Academic Resources' });
+              setUploadStatus('');
+              setUploadProgress(0);
             }
           }
         ]
@@ -754,7 +890,21 @@ export default function ExpertHome() {
 
     } catch (error) {
       console.error('Upload error:', error);
-      Alert.alert('Upload Failed', 'There was an error uploading the file. Please try again.');
+      setUploadStatus('');
+      setUploadProgress(0);
+
+      if (error instanceof Error) {
+        // Provide more specific error messages
+        if (error.message.includes('fetch')) {
+          Alert.alert('Upload Failed', 'Could not read the selected file. Please try selecting the file again.');
+        } else if (error.message.includes('Network')) {
+          Alert.alert('Upload Failed', 'Network error. Please check your internet connection and try again.');
+        } else {
+          Alert.alert('Upload Failed', `Error: ${error.message}`);
+        }
+      } else {
+        Alert.alert('Upload Failed', 'There was an unexpected error uploading the file. Please try again.');
+      }
     } finally {
       setUploadLoading(false);
     }

@@ -48,29 +48,18 @@ export default function AdminHome() {
     const fetchUsers = async () => {
       setLoading(true);
       try {
-        console.log('Fetching users from user_requests and peer_listeners tables...');
+        console.log('Fetching users from user_requests table...');
 
-        // Fetch all user requests with their details
+        // Fetch all user requests with their details (includes Students, Experts, and Peer Listeners)
         const { data: userRequests, error: userError } = await supabase
           .from('user_requests')
-          .select('*')
-          .order('requested_at', { ascending: false });
-
-        // Fetch peer listeners
-        const { data: peerListeners, error: peerError } = await supabase
-          .from('peer_listeners')
-          .select('*')
+          .select('id, user_name, username, user_type, registration_number, email, course, phone, dob, created_at')
           .order('created_at', { ascending: false });
 
         console.log('User requests results:', { data: userRequests, error: userError });
-        console.log('Peer listeners results:', { data: peerListeners, error: peerError });
 
         if (userError) {
           console.error('Error fetching user requests:', userError);
-        }
-
-        if (peerError) {
-          console.error('Error fetching peer listeners:', peerError);
         }
 
         const allUsers: any[] = [];
@@ -83,7 +72,7 @@ export default function AdminHome() {
           return diffMinutes <= 30 ? 'Online' : 'Offline';
         };
 
-        // Process user requests data
+        // Process user requests data (includes Students, Experts, and Peer Listeners)
         if (userRequests && userRequests.length > 0) {
           userRequests.forEach(request => {
             allUsers.push({
@@ -93,38 +82,15 @@ export default function AdminHome() {
               reg_no: request.registration_number,
               email: request.email || 'N/A',
               course: request.course || 'N/A',
-              type: request.user_type, // 'Student' or 'Expert'
-              status: getOnlineStatus(request.processed_at || request.requested_at),
-              request_status: request.status, // 'pending', 'approved', 'rejected'
+              type: request.user_type, // 'Student', 'Expert', or 'Peer Listener'
+              status: getOnlineStatus(request.created_at),
+              request_status: 'approved', // Default status since column doesn't exist
               phone: request.phone || 'N/A',
               dob: request.dob || 'N/A',
-              details: request.details || 'N/A',
-              created_at: request.requested_at,
-              updated_at: request.processed_at || request.requested_at,
-              category: request.user_type.toLowerCase()
-            });
-          });
-        }
-
-        // Process peer listeners data
-        if (peerListeners && peerListeners.length > 0) {
-          peerListeners.forEach(peer => {
-            allUsers.push({
-              id: peer.id,
-              name: peer.name,
-              username: peer.username,
-              reg_no: peer.student_id,
-              email: peer.email || 'N/A',
-              course: peer.course || 'N/A',
-              type: 'Peer Listener',
-              status: getOnlineStatus(peer.updated_at || peer.created_at),
-              request_status: peer.status, // 'pending', 'approved', 'rejected'
-              phone: peer.phone || 'N/A',
-              dob: 'N/A',
-              details: `Year: ${peer.year || 'N/A'}`,
-              created_at: peer.created_at,
-              updated_at: peer.updated_at || peer.created_at,
-              category: 'peer_listener'
+              details: 'N/A',
+              created_at: request.created_at,
+              updated_at: request.created_at,
+              category: request.user_type.toLowerCase().replace(' ', '_')
             });
           });
         }
@@ -157,29 +123,19 @@ export default function AdminHome() {
     const fetchRequests = async () => {
       if (activeTab === 'requests') {
         try {
-          // Fetch user requests
+          // Fetch user requests (includes Students, Experts, and Peer Listeners)
           const { data: userRequests, error: userError } = await supabase
             .from('user_requests')
-            .select('*')
-            .order('requested_at', { ascending: false });
-
-          // Fetch peer listener requests
-          const { data: peerRequests, error: peerError } = await supabase
-            .from('peer_listeners')
-            .select('*')
+            .select('id, user_name, username, user_type, registration_number, email, course, phone, dob, created_at')
             .order('created_at', { ascending: false });
 
           if (userError) {
             console.error('Error fetching user requests:', userError);
           }
 
-          if (peerError) {
-            console.error('Error fetching peer listener requests:', peerError);
-          }
-
           const allRequests: any[] = [];
 
-          // Add user requests
+          // Add user requests (includes Students, Experts, and Peer Listeners)
           if (userRequests) {
             userRequests.forEach(request => {
               allRequests.push({
@@ -188,29 +144,15 @@ export default function AdminHome() {
                 user_name: request.user_name,
                 user_type: request.user_type,
                 registration_number: request.registration_number,
-                status: request.status
+                status: 'approved' // Default status since column doesn't exist
               });
             });
           }
 
-          // Add peer listener requests
-          if (peerRequests) {
-            peerRequests.forEach(request => {
-              allRequests.push({
-                ...request,
-                request_type: 'peer_listener',
-                user_name: request.name,
-                user_type: 'Peer Listener',
-                registration_number: request.student_id,
-                status: request.status
-              });
-            });
-          }
-
-          // Sort by creation date (use requested_at for user_requests, created_at for others)
+          // Sort by creation date
           allRequests.sort((a, b) => {
-            const dateA = new Date(a.requested_at || a.created_at).getTime();
-            const dateB = new Date(b.requested_at || b.created_at).getTime();
+            const dateA = new Date(a.created_at).getTime();
+            const dateB = new Date(b.created_at).getTime();
             return dateB - dateA;
           });
 
@@ -970,7 +912,7 @@ export default function AdminHome() {
                   <View style={{ flexDirection: 'row', marginTop: 8 }}>
                     <View style={{ flex: 1, marginRight: 8 }}>
                       <Text style={{ color: '#aaa', fontSize: 11, marginBottom: 2 }}>SUBMITTED</Text>
-                      <Text style={{ color: 'white', fontSize: 12 }}>{new Date(request.requested_at || request.created_at).toLocaleDateString()}</Text>
+                      <Text style={{ color: 'white', fontSize: 12 }}>{new Date(request.created_at).toLocaleDateString()}</Text>
                     </View>
                     <View style={{ flex: 1 }}>
                       <Text style={{ color: '#aaa', fontSize: 11, marginBottom: 2 }}>REQUEST ID</Text>

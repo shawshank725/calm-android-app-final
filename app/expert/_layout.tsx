@@ -5,7 +5,6 @@ export default function ExpertLayout() {
     <Stack screenOptions={{ headerShown: false }}>
       <Stack.Screen name="expert-home" />
       <Stack.Screen name="expert-client" />
-      <Stack.Screen name="calm" />
     </Stack>
   );
 }

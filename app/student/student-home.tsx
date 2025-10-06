@@ -227,6 +227,9 @@ export default function StudentHome() {
           // Initialize mood prompt system
           await initializeMoodPromptSystem(regNo);
 
+          // Load notifications after session is established
+          await loadNotifications();
+
           // Check for mood prompts after login with slight delay
           setTimeout(async () => {
             console.log('🎯 Checking for mood prompts after login...');
@@ -355,9 +358,8 @@ export default function StudentHome() {
   // Load notifications on component mount and when focused
   useEffect(() => {
     // Only load notifications if we have a valid registration number
-    if (studentReg || studentRegNo) {
-      loadNotifications();
-    }
+    // Skip initial load here since it's handled in loadStudentSession
+    // This useEffect is mainly for setting up the real-time subscription
 
     // Set up real-time subscription for notifications
     const notificationSubscription = supabase

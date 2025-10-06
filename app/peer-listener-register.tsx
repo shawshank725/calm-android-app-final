@@ -3,19 +3,42 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRouter } from 'expo-router';
 import { useCallback, useState } from 'react';
 import {
-    Alert,
-    KeyboardAvoidingView,
-    Platform,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View
+  Alert,
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View
 } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
 import { Colors } from '../constants/Colors';
 import { supabase } from '../lib/supabase';
+
+const COURSES = [
+  'Faculty of Commerce and Management',
+  'Faculty of Hotel and Tourism Management',
+  'Faculty of Allied Health Sciences',
+  'Faculty of Agricultural Sciences',
+  'Faculty of Applied and Basic Sciences',
+  'Faculty of Design',
+  'Faculty of Mass Communications and Media Technology',
+  'Faculty of Behavioural Sciences',
+  'Faculty of Law',
+  'Faculty of Education',
+  'Faculty of Dental Sciences',
+  'Faculty of Naturopathy and Yogic Sciences',
+  'Faculty of Indian Medical Sciences',
+  'Faculty of Nursing',
+  'SGT College Of Pharmacy',
+  'Faculty of Physiotherapy',
+  'Faculty of Medical Health Sciences',
+  'Faculty of Engineering Technology',
+  'Faculty of Humanities Social Sciences, and Liberal Arts',
+];
 
 export default function PeerListenerRegister() {
   const router = useRouter();
@@ -31,6 +54,7 @@ export default function PeerListenerRegister() {
   });
   const [passwordVisible, setPasswordVisible] = useState(false);
   const [confirmPasswordVisible, setConfirmPasswordVisible] = useState(false);
+  const [courseModalVisible, setCourseModalVisible] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
 
   const updateFormData = useCallback((field: string, value: string) => {
@@ -138,7 +162,6 @@ export default function PeerListenerRegister() {
             course: formData.course.trim(),
             password: formData.password,
             phone: formData.phone.trim(),
-            status: 'approved',
             created_at: new Date().toISOString()
           }
         ])
@@ -194,6 +217,21 @@ export default function PeerListenerRegister() {
 
       // Store registration data locally for backup
       await AsyncStorage.setItem('pendingPeerListener', JSON.stringify(formData));
+
+      // Show success message
+      Alert.alert(
+        '✅ Registration Successful!',
+        'Your peer listener registration has been submitted successfully. You can now log in with your credentials.',
+        [
+          {
+            text: 'OK',
+            onPress: () => {
+              // Navigate back to login page
+              router.replace('/');
+            }
+          }
+        ]
+      );
 
     } catch (error) {
       console.error('Registration error:', error);
@@ -361,14 +399,27 @@ export default function PeerListenerRegister() {
 
               <View style={styles.inputContainer}>
                 <Text style={styles.inputLabel}>Course/Program *</Text>
-                <TextInput
-                  style={styles.input}
-                  value={formData.course}
-                  onChangeText={(value) => updateFormData('course', value)}
-                  placeholder="Enter your course or program"
-                  placeholderTextColor="#a8a8a8"
-                  editable={!isLoading}
-                />
+                <TouchableOpacity
+                  onPress={() => setCourseModalVisible(true)}
+                  style={[
+                    styles.input,
+                    {
+                      flexDirection: 'row',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                    }
+                  ]}
+                  disabled={isLoading}
+                >
+                  <Text style={{
+                    color: formData.course ? '#333' : '#a8a8a8',
+                    fontSize: 16,
+                    flex: 1,
+                  }}>
+                    {formData.course || 'Select your course or program'}
+                  </Text>
+                  <Ionicons name="chevron-down" size={20} color="#666" />
+                </TouchableOpacity>
               </View>
 
               <TouchableOpacity
@@ -384,6 +435,70 @@ export default function PeerListenerRegister() {
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
+
+      {/* Course Selection Modal */}
+      <Modal
+        visible={courseModalVisible}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => setCourseModalVisible(false)}
+      >
+        <View style={{
+          flex: 1,
+          backgroundColor: 'rgba(0, 0, 0, 0.5)',
+          justifyContent: 'flex-end',
+        }}>
+          <View style={{
+            backgroundColor: 'white',
+            borderTopLeftRadius: 20,
+            borderTopRightRadius: 20,
+            maxHeight: '70%',
+          }}>
+            <View style={{
+              flexDirection: 'row',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              padding: 20,
+              borderBottomWidth: 1,
+              borderBottomColor: '#e0e0e0',
+            }}>
+              <Text style={{
+                fontSize: 18,
+                fontWeight: 'bold',
+                color: Colors.primary,
+              }}>Select Course</Text>
+              <TouchableOpacity onPress={() => setCourseModalVisible(false)}>
+                <Ionicons name="close" size={28} color={Colors.primary} />
+              </TouchableOpacity>
+            </View>
+            <ScrollView style={{ maxHeight: '100%' }}>
+              {COURSES.map((courseItem, index) => (
+                <TouchableOpacity
+                  key={index}
+                  onPress={() => {
+                    updateFormData('course', courseItem);
+                    setCourseModalVisible(false);
+                  }}
+                  style={{
+                    padding: 16,
+                    borderBottomWidth: 1,
+                    borderBottomColor: '#f0f0f0',
+                    backgroundColor: formData.course === courseItem ? Colors.accentLight : 'white',
+                  }}
+                >
+                  <Text style={{
+                    fontSize: 16,
+                    color: formData.course === courseItem ? Colors.primary : '#333',
+                    fontWeight: formData.course === courseItem ? 'bold' : 'normal',
+                  }}>
+                    {index + 1}. {courseItem}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }

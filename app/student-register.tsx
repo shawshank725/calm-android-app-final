@@ -1,11 +1,32 @@
 import { Ionicons } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { useCallback, useState } from 'react';
-import { Alert, KeyboardAvoidingView, Platform, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { Alert, KeyboardAvoidingView, Modal, Platform, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
 import { Colors } from '../constants/Colors';
 import { supabase } from '../lib/supabase';
+
+const COURSES = [
+  'Faculty of Commerce and Management',
+  'Faculty of Hotel and Tourism Management',
+  'Faculty of Allied Health Sciences',
+  'Faculty of Agricultural Sciences',
+  'Faculty of Applied and Basic Sciences',
+  'Faculty of Design',
+  'Faculty of Mass Communications and Media Technology',
+  'Faculty of Behavioural Sciences',
+  'Faculty of Law',
+  'Faculty of Education',
+  'Faculty of Dental Sciences',
+  'Faculty of Naturopathy and Yogic Sciences',
+  'Faculty of Indian Medical Sciences',
+  'Faculty of Nursing',
+  'SGT College Of Pharmacy',
+  'Faculty of Physiotherapy',
+  'Faculty of Medical Health Sciences',
+  'Faculty of Engineering Technology',
+  'Faculty of Humanities Social Sciences, and Liberal Arts',
+];
 
 export default function StudentRegister() {
   const router = useRouter();
@@ -18,6 +39,7 @@ export default function StudentRegister() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [passwordVisible, setPasswordVisible] = useState(false);
+  const [courseModalVisible, setCourseModalVisible] = useState(false);
 
   const handleNameChange = useCallback((text: string) => setName(text), []);
   const handleUsernameChange = useCallback((text: string) => setUsername(text), []);
@@ -81,7 +103,6 @@ export default function StudentRegister() {
               password: password,
               phone: phone,
               dob: dob,
-              status: 'approved',
               created_at: new Date().toISOString()
             }
           ]);
@@ -91,8 +112,19 @@ export default function StudentRegister() {
           return;
         }
 
-        Alert.alert('Registration Successful', `Welcome ${name}! Your student account has been created successfully. You can now log in.`);
-        router.replace('./student-login');
+        Alert.alert(
+          '✅ Registration Successful',
+          `Welcome ${name}! Your student account has been created successfully. You can now log in with your credentials.`,
+          [
+            {
+              text: 'OK',
+              onPress: () => {
+                // Navigate to login page
+                router.replace('/');
+              }
+            }
+          ]
+        );
       } catch (error) {
         console.error('Registration error:', error);
         Alert.alert('Error', 'An unexpected error occurred. Please try again.');
@@ -103,229 +135,335 @@ export default function StudentRegister() {
   };
 
   return (
-    <View style={{ flex: 1 }}>
-      {/* Back Button - Top Left */}
-      <View style={{ position: 'absolute', top: 50, left: 20, zIndex: 10 }}>
-        <TouchableOpacity
-          style={{
-            backgroundColor: Colors.white,
-            paddingVertical: 10,
-            paddingHorizontal: 16,
-            borderRadius: 20,
-            elevation: 4,
-            shadowColor: Colors.shadow,
-            shadowOffset: { width: 0, height: 2 },
-            shadowOpacity: 0.3,
-            shadowRadius: 4,
-            borderWidth: 2,
-            borderColor: Colors.primary,
-          }}
-          onPress={() => router.back()}
-        >
-          <Text style={{ color: Colors.primary, fontSize: 16, fontWeight: 'bold', fontFamily: 'Roboto' }}>← Back</Text>
-        </TouchableOpacity>
-      </View>
-
-      <LinearGradient
-        colors={["#FFFFFF", "#D8BFD8"]}
-        style={{ flex: 1 }}
-        start={{ x: 0.5, y: 0 }}
-        end={{ x: 0.5, y: 1 }}
+    <View style={{ flex: 1, backgroundColor: Colors.background }}>
+      <Svg
+        height="100%"
+        width="100%"
+        style={{ position: 'absolute', top: '20%' }}
+        viewBox="0 0 100 100"
       >
-        <Svg
-          height="100%"
-          width="100%"
-          style={{ position: 'absolute', top: '20%' }}
-          viewBox="0 0 100 100"
-        >
-          <Path
-            d="M0,20 C30,40 70,0 100,20 L100,100 L0,100 Z"
-            fill="#D8BFD8"
-          />
-        </Svg>
-        <KeyboardAvoidingView
-          style={{ flex: 1 }}
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-          keyboardVerticalOffset={40}
-        >
-          <ScrollView contentContainerStyle={{ flexGrow: 1, justifyContent: 'center', alignItems: 'center', padding: 24 }}>
-            <Text style={{
-              fontSize: 40,
-              color: Colors.white,
-              fontFamily: 'Roboto',
-              marginBottom: 32,
-              fontWeight: 'bold',
-              textShadowColor: Colors.black,
-              textShadowOffset: { width: 3, height: 3 },
-              textShadowRadius: 3
+        <Path
+          d="M0,20 C30,40 70,0 100,20 L100,100 L0,100 Z"
+          fill="#D8BFD8"
+        />
+      </Svg>
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      >
+        {/* Header */}
+        <View style={{
+          flexDirection: 'row',
+          alignItems: 'center',
+          paddingTop: 50,
+          paddingHorizontal: 20,
+          paddingBottom: 15,
+          backgroundColor: 'transparent',
+        }}>
+          <TouchableOpacity
+            style={{
+              backgroundColor: Colors.white,
+              paddingVertical: 8,
+              paddingHorizontal: 15,
+              borderRadius: 20,
+              marginRight: 15,
+              elevation: 4,
+              shadowColor: Colors.shadow,
+              shadowOffset: { width: 0, height: 2 },
+              shadowOpacity: 0.3,
+              shadowRadius: 4,
+              borderWidth: 2,
+              borderColor: Colors.primary,
+            }}
+            onPress={() => router.back()}
+          >
+            <Text style={{ color: Colors.primary, fontSize: 16, fontWeight: 'bold' }}>← Back</Text>
+          </TouchableOpacity>
+          <Text style={{
+            color: Colors.white,
+            fontSize: 20,
+            fontWeight: 'bold',
+            flex: 1,
+            textShadowColor: Colors.black,
+            textShadowOffset: { width: 2, height: 2 },
+            textShadowRadius: 3,
+          }}>Student Registration</Text>
+        </View>
+
+        <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false}>
+          <View style={{ paddingHorizontal: 20, paddingBottom: 30 }}>
+            <View style={{
+              backgroundColor: 'white',
+              borderRadius: 20,
+              padding: 25,
+              marginTop: 20,
+              elevation: 8,
+              shadowColor: Colors.shadow,
+              shadowOffset: { width: 0, height: 4 },
+              shadowOpacity: 0.3,
+              shadowRadius: 8,
             }}>
-              Student Register
-            </Text>
-            <TextInput
-              placeholder="Name"
-              placeholderTextColor={Colors.textLight}
-              value={name}
-              onChangeText={setName}
-              style={{
-                width: 280,
-                backgroundColor: Colors.secondary,
-                color: 'white',
-                borderRadius: 8,
-                padding: 12,
-                marginBottom: 16,
-                fontSize: 16,
-              }}
-            />
-            <TextInput
-              placeholder="Username"
-              placeholderTextColor={Colors.textLight}
-              value={username}
-              onChangeText={setUsername}
-              style={{
-                width: 280,
-                backgroundColor: Colors.secondary,
-                color: 'white',
-                borderRadius: 8,
-                padding: 12,
-                marginBottom: 16,
-                fontSize: 16,
-              }}
-              autoCapitalize="none"
-            />
-            <TextInput
-              placeholder="Registration Number"
-              placeholderTextColor={Colors.textLight}
-              value={registrationNumber}
-              onChangeText={setRegistrationNumber}
-              style={{
-                width: 280,
-                backgroundColor: Colors.secondary,
-                color: 'white',
-                borderRadius: 8,
-                padding: 12,
-                marginBottom: 16,
-                fontSize: 16,
-              }}
-              autoCapitalize="none"
-            />
-            <TextInput
-              placeholder="Course"
-              placeholderTextColor={Colors.textLight}
-              value={course}
-              onChangeText={setCourse}
-              style={{
-                width: 280,
-                backgroundColor: Colors.secondary,
-                color: 'white',
-                borderRadius: 8,
-                padding: 12,
-                marginBottom: 16,
-                fontSize: 16,
-              }}
-            />
-            <TextInput
-              placeholder="Phone Number"
-              placeholderTextColor={Colors.textLight}
-              value={phone}
-              onChangeText={setPhone}
-              style={{
-                width: 280,
-                backgroundColor: Colors.secondary,
-                color: 'white',
-                borderRadius: 8,
-                padding: 12,
-                marginBottom: 16,
-                fontSize: 16,
-              }}
-              keyboardType="phone-pad"
-            />
-            <TextInput
-              placeholder="Date of Birth (YYYY-MM-DD)"
-              placeholderTextColor={Colors.textLight}
-              value={dob}
-              onChangeText={setDob}
-              style={{
-                width: 280,
-                backgroundColor: Colors.secondary,
-                color: 'white',
-                borderRadius: 8,
-                padding: 12,
-                marginBottom: 16,
-                fontSize: 16,
-              }}
-            />
-            <TextInput
-              placeholder="Email"
-              placeholderTextColor={Colors.textLight}
-              value={email}
-              onChangeText={setEmail}
-              style={{
-                width: 280,
-                backgroundColor: Colors.secondary,
-                color: 'white',
-                borderRadius: 8,
-                padding: 12,
-                marginBottom: 16,
-                fontSize: 16,
-              }}
-              keyboardType="email-address"
-              autoCapitalize="none"
-            />
-            <View style={{ position: 'relative', marginBottom: 24, width: 280 }}>
-              <TextInput
-                placeholder="Password"
-                placeholderTextColor={Colors.textLight}
-                value={password}
-                onChangeText={setPassword}
-                style={{
-                  width: 280,
-                  backgroundColor: Colors.secondary,
-                  color: 'white',
-                  borderRadius: 8,
-                  padding: 12,
-                  paddingRight: 45,
-                  fontSize: 16,
-                }}
-                secureTextEntry={!passwordVisible}
-              />
-              <TouchableOpacity
-                onPress={() => setPasswordVisible(!passwordVisible)}
-                style={{
-                  position: 'absolute',
-                  right: 12,
-                  top: 12,
-                  padding: 4
-                }}
-              >
-                <Ionicons
-                  name={passwordVisible ? 'eye-off' : 'eye'}
-                  size={24}
-                  color="white"
+
+              <View style={{ marginBottom: 20 }}>
+                <Text style={{ fontSize: 14, fontWeight: '600', color: Colors.primary, marginBottom: 8 }}>Full Name *</Text>
+                <TextInput
+                  style={{
+                    backgroundColor: '#f5f5f5',
+                    borderRadius: 10,
+                    padding: 14,
+                    fontSize: 16,
+                    borderWidth: 1,
+                    borderColor: '#e0e0e0',
+                  }}
+                  value={name}
+                  onChangeText={setName}
+                  placeholder="Enter your full name"
+                  placeholderTextColor="#a8a8a8"
                 />
+              </View>
+
+              <View style={{ marginBottom: 20 }}>
+                <Text style={{ fontSize: 14, fontWeight: '600', color: Colors.primary, marginBottom: 8 }}>Email Address *</Text>
+                <TextInput
+                  style={{
+                    backgroundColor: '#f5f5f5',
+                    borderRadius: 10,
+                    padding: 14,
+                    fontSize: 16,
+                    borderWidth: 1,
+                    borderColor: '#e0e0e0',
+                  }}
+                  value={email}
+                  onChangeText={setEmail}
+                  placeholder="Enter your email"
+                  placeholderTextColor="#a8a8a8"
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                />
+              </View>
+
+              <View style={{ marginBottom: 20 }}>
+                <Text style={{ fontSize: 14, fontWeight: '600', color: Colors.primary, marginBottom: 8 }}>Phone Number *</Text>
+                <TextInput
+                  style={{
+                    backgroundColor: '#f5f5f5',
+                    borderRadius: 10,
+                    padding: 14,
+                    fontSize: 16,
+                    borderWidth: 1,
+                    borderColor: '#e0e0e0',
+                  }}
+                  value={phone}
+                  onChangeText={setPhone}
+                  placeholder="Enter your phone number"
+                  placeholderTextColor="#a8a8a8"
+                  keyboardType="phone-pad"
+                />
+              </View>
+
+              <View style={{ marginBottom: 20 }}>
+                <Text style={{ fontSize: 14, fontWeight: '600', color: Colors.primary, marginBottom: 8 }}>Username *</Text>
+                <TextInput
+                  style={{
+                    backgroundColor: '#f5f5f5',
+                    borderRadius: 10,
+                    padding: 14,
+                    fontSize: 16,
+                    borderWidth: 1,
+                    borderColor: '#e0e0e0',
+                  }}
+                  value={username}
+                  onChangeText={setUsername}
+                  placeholder="Choose a username"
+                  placeholderTextColor="#a8a8a8"
+                  autoCapitalize="none"
+                />
+              </View>
+
+              <View style={{ marginBottom: 20 }}>
+                <Text style={{ fontSize: 14, fontWeight: '600', color: Colors.primary, marginBottom: 8 }}>Registration Number *</Text>
+                <TextInput
+                  style={{
+                    backgroundColor: '#f5f5f5',
+                    borderRadius: 10,
+                    padding: 14,
+                    fontSize: 16,
+                    borderWidth: 1,
+                    borderColor: '#e0e0e0',
+                  }}
+                  value={registrationNumber}
+                  onChangeText={setRegistrationNumber}
+                  placeholder="Enter your registration number"
+                  placeholderTextColor="#a8a8a8"
+                />
+              </View>
+
+              <View style={{ marginBottom: 20 }}>
+                <Text style={{ fontSize: 14, fontWeight: '600', color: Colors.primary, marginBottom: 8 }}>Course/Program *</Text>
+                <TouchableOpacity
+                  onPress={() => setCourseModalVisible(true)}
+                  style={{
+                    backgroundColor: '#f5f5f5',
+                    borderRadius: 10,
+                    padding: 14,
+                    borderWidth: 1,
+                    borderColor: '#e0e0e0',
+                    flexDirection: 'row',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                  }}
+                >
+                  <Text style={{
+                    color: course ? '#333' : '#a8a8a8',
+                    fontSize: 16,
+                    flex: 1,
+                  }}>
+                    {course || 'Select your course or program'}
+                  </Text>
+                  <Ionicons name="chevron-down" size={20} color="#666" />
+                </TouchableOpacity>
+              </View>
+
+              <View style={{ marginBottom: 20 }}>
+                <Text style={{ fontSize: 14, fontWeight: '600', color: Colors.primary, marginBottom: 8 }}>Date of Birth *</Text>
+                <TextInput
+                  style={{
+                    backgroundColor: '#f5f5f5',
+                    borderRadius: 10,
+                    padding: 14,
+                    fontSize: 16,
+                    borderWidth: 1,
+                    borderColor: '#e0e0e0',
+                  }}
+                  value={dob}
+                  onChangeText={setDob}
+                  placeholder="DD/MM/YYYY"
+                  placeholderTextColor="#a8a8a8"
+                />
+              </View>
+
+              <View style={{ marginBottom: 20 }}>
+                <Text style={{ fontSize: 14, fontWeight: '600', color: Colors.primary, marginBottom: 8 }}>Password *</Text>
+                <View style={{ position: 'relative' }}>
+                  <TextInput
+                    style={{
+                      backgroundColor: '#f5f5f5',
+                      borderRadius: 10,
+                      padding: 14,
+                      paddingRight: 45,
+                      fontSize: 16,
+                      borderWidth: 1,
+                      borderColor: '#e0e0e0',
+                    }}
+                    value={password}
+                    onChangeText={setPassword}
+                    placeholder="Create a password (min 6 characters)"
+                    placeholderTextColor="#a8a8a8"
+                    secureTextEntry={!passwordVisible}
+                  />
+                  <TouchableOpacity
+                    onPress={() => setPasswordVisible(!passwordVisible)}
+                    style={{
+                      position: 'absolute',
+                      right: 12,
+                      top: 14,
+                      padding: 4
+                    }}
+                  >
+                    <Ionicons
+                      name={passwordVisible ? 'eye-off' : 'eye'}
+                      size={24}
+                      color="#666"
+                    />
+                  </TouchableOpacity>
+                </View>
+              </View>
+
+              <TouchableOpacity
+                style={{
+                  backgroundColor: Colors.primary,
+                  paddingVertical: 16,
+                  borderRadius: 12,
+                  alignItems: 'center',
+                  marginTop: 10,
+                  elevation: 3,
+                  shadowColor: Colors.shadow,
+                  shadowOffset: { width: 0, height: 2 },
+                  shadowOpacity: 0.25,
+                  shadowRadius: 4,
+                }}
+                onPress={handleRegister}
+              >
+                <Text style={{ color: 'white', fontSize: 18, fontWeight: 'bold' }}>Register</Text>
               </TouchableOpacity>
             </View>
-            <TouchableOpacity
-              onPress={handleRegister}
-              style={{
-                backgroundColor: Colors.white,
-                paddingVertical: 14,
-                paddingHorizontal: 40,
-                borderRadius: 25,
-                marginBottom: 24,
-                elevation: 4,
-                shadowColor: Colors.shadow,
-                shadowOffset: { width: 0, height: 3 },
-                shadowOpacity: 0.18,
-                shadowRadius: 5,
-                borderWidth: 2,
-                borderColor: Colors.primary,
-              }}
-            >
-              <Text style={{ color: Colors.primary, fontSize: 18, fontWeight: 'bold', fontFamily: 'Roboto' }}>Register</Text>
-            </TouchableOpacity>
-          </ScrollView>
-        </KeyboardAvoidingView>
-      </LinearGradient>
+          </View>
+        </ScrollView>
+      </KeyboardAvoidingView>
+
+      {/* Course Selection Modal */}
+      <Modal
+        visible={courseModalVisible}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => setCourseModalVisible(false)}
+      >
+        <View style={{
+          flex: 1,
+          backgroundColor: 'rgba(0, 0, 0, 0.5)',
+          justifyContent: 'flex-end',
+        }}>
+          <View style={{
+            backgroundColor: 'white',
+            borderTopLeftRadius: 20,
+            borderTopRightRadius: 20,
+            maxHeight: '70%',
+          }}>
+            <View style={{
+              flexDirection: 'row',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              padding: 20,
+              borderBottomWidth: 1,
+              borderBottomColor: '#e0e0e0',
+            }}>
+              <Text style={{
+                fontSize: 18,
+                fontWeight: 'bold',
+                color: Colors.primary,
+              }}>Select Faculty</Text>
+              <TouchableOpacity onPress={() => setCourseModalVisible(false)}>
+                <Ionicons name="close" size={28} color={Colors.primary} />
+              </TouchableOpacity>
+            </View>
+            <ScrollView style={{ maxHeight: '100%' }}>
+              {COURSES.map((courseItem, index) => (
+                <TouchableOpacity
+                  key={index}
+                  onPress={() => {
+                    setCourse(courseItem);
+                    setCourseModalVisible(false);
+                  }}
+                  style={{
+                    padding: 16,
+                    borderBottomWidth: 1,
+                    borderBottomColor: '#f0f0f0',
+                    backgroundColor: course === courseItem ? Colors.accentLight : 'white',
+                  }}
+                >
+                  <Text style={{
+                    fontSize: 16,
+                    color: course === courseItem ? Colors.primary : '#333',
+                    fontWeight: course === courseItem ? 'bold' : 'normal',
+                  }}>
+                    {index + 1}. {courseItem}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }

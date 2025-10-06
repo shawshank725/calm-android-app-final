@@ -18,6 +18,7 @@ export default function StudentCalm() {
   const params = useLocalSearchParams<{ registration?: string }>();
   const [showPsychologistModal, setShowPsychologistModal] = useState(false);
   const [selectedPsychologist, setSelectedPsychologist] = useState<string | null>(null);
+  const [bookingMode, setBookingMode] = useState<'online' | 'offline' | null>(null);
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [selectedTime, setSelectedTime] = useState<string | null>(null);
   const [availableTimeSlots, setAvailableTimeSlots] = useState<any[]>([]);
@@ -535,7 +536,7 @@ export default function StudentCalm() {
   };
 
   const bookSession = async () => {
-    if (selectedPsychologist && selectedDate && selectedTime) {
+    if (selectedPsychologist && selectedDate && selectedTime && bookingMode) {
       try {
         // Validate required student information
         if (!studentInfo.registration) {
@@ -611,6 +612,7 @@ export default function StudentCalm() {
           expert_name: expert?.name || 'Unknown Expert',
           session_date: selectedDate,
           session_time: selectedTime,
+          booking_mode: bookingMode,
           status: 'pending',
         };
 
@@ -712,6 +714,7 @@ export default function StudentCalm() {
           expertRegistration: expert?.registration_number || selectedPsychologist,
           date: selectedDate,
           time: selectedTime,
+          bookingMode: bookingMode,
           status: 'pending',
           requestedAt: new Date().toISOString(),
           notes: `Session booking request from ${studentInfo.name || studentInfo.username}`
@@ -736,6 +739,7 @@ export default function StudentCalm() {
         // Reset selections and close modal
         setSelectedDate(null);
         setSelectedTime(null);
+        setBookingMode(null);
         setShowPsychologistModal(false);
 
         // Show success message
@@ -747,6 +751,7 @@ export default function StudentCalm() {
           `• Expert ID: ${expert?.registration_number || selectedPsychologist}\n` +
           `• Date: ${new Date(selectedDate).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}\n` +
           `• Time: ${selectedTime}\n` +
+          `• Mode: ${bookingMode === 'online' ? '🌐 Online' : '🏢 Offline'}\n` +
           `• Request ID: ${supabaseData.id}\n` +
           `• Status: Pending\n\n` +
           `✉️ The expert will receive your request and will respond soon.\n` +
@@ -1187,8 +1192,56 @@ export default function StudentCalm() {
                 ))
               )}
 
-              {/* Calendar */}
+              {/* Booking Mode Selection */}
               {selectedPsychologist && (
+                <>
+                  <Text style={styles.sectionTitle}>Select Booking Mode</Text>
+                  <View style={styles.bookingModeContainer}>
+                    <TouchableOpacity
+                      style={[
+                        styles.bookingModeButton,
+                        bookingMode === 'online' && styles.selectedBookingMode
+                      ]}
+                      onPress={() => setBookingMode('online')}
+                    >
+                      <Text style={[
+                        styles.bookingModeIcon,
+                        bookingMode === 'online' && styles.selectedBookingModeText
+                      ]}>🌐</Text>
+                      <Text style={[
+                        styles.bookingModeText,
+                        bookingMode === 'online' && styles.selectedBookingModeText
+                      ]}>Online</Text>
+                      {bookingMode === 'online' && (
+                        <Text style={styles.selectedBookingIcon}>✓</Text>
+                      )}
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                      style={[
+                        styles.bookingModeButton,
+                        bookingMode === 'offline' && styles.selectedBookingMode
+                      ]}
+                      onPress={() => setBookingMode('offline')}
+                    >
+                      <Text style={[
+                        styles.bookingModeIcon,
+                        bookingMode === 'offline' && styles.selectedBookingModeText
+                      ]}>🏢</Text>
+                      <Text style={[
+                        styles.bookingModeText,
+                        bookingMode === 'offline' && styles.selectedBookingModeText
+                      ]}>Offline</Text>
+                      {bookingMode === 'offline' && (
+                        <Text style={styles.selectedBookingIcon}>✓</Text>
+                      )}
+                    </TouchableOpacity>
+                  </View>
+                </>
+              )}
+
+              {/* Calendar */}
+              {selectedPsychologist && bookingMode && (
                 <>
                   <Text style={styles.sectionTitle}>Select Date</Text>
                   <View style={styles.calendarContainer}>
@@ -1226,7 +1279,7 @@ export default function StudentCalm() {
               )}
 
               {/* Time Slots */}
-              {selectedPsychologist && selectedDate && (
+              {selectedPsychologist && bookingMode && selectedDate && (
                 <>
                   <Text style={styles.sectionTitle}>Available Time Slots</Text>
 
@@ -1323,7 +1376,7 @@ export default function StudentCalm() {
               )}
 
               {/* Book Button */}
-              {selectedPsychologist && selectedDate && selectedTime && (
+              {selectedPsychologist && bookingMode && selectedDate && selectedTime && (
                 <TouchableOpacity
                   style={styles.bookButton}
                   onPress={bookSession}
@@ -1758,6 +1811,51 @@ const styles = StyleSheet.create({
     fontSize: 20,
     color: Colors.primary,
     fontWeight: 'bold',
+  },
+  // Booking mode styles
+  bookingModeContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 20,
+    gap: 10,
+  },
+  bookingModeButton: {
+    flex: 1,
+    backgroundColor: Colors.white,
+    borderRadius: 12,
+    padding: 16,
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: '#e0e0e0',
+    elevation: 2,
+    shadowColor: Colors.shadow,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
+  },
+  selectedBookingMode: {
+    backgroundColor: Colors.accentLight,
+    borderColor: Colors.primary,
+    borderWidth: 2,
+  },
+  bookingModeIcon: {
+    fontSize: 32,
+    marginBottom: 8,
+  },
+  bookingModeText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: Colors.text,
+  },
+  selectedBookingModeText: {
+    color: Colors.primary,
+    fontWeight: 'bold',
+  },
+  selectedBookingIcon: {
+    fontSize: 18,
+    color: Colors.primary,
+    fontWeight: 'bold',
+    marginTop: 4,
   },
   // Calendar styles
   calendarContainer: {

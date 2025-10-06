@@ -30,8 +30,8 @@ export default function ExpertChatPage() {
         studentId?: string;
         studentName?: string;
         studentReg?: string;
-        studentEmail?: string;
-        studentCourse?: string;
+        email?: string;
+        course?: string;
         expertReg?: string;
         expertName?: string;
     }>();
@@ -39,7 +39,38 @@ export default function ExpertChatPage() {
     const [messages, setMessages] = useState<ChatMessage[]>([]);
     const [newMessage, setNewMessage] = useState('');
     const [loading, setLoading] = useState(false);
+    const [studentEmail, setStudentEmail] = useState<string>('');
+    const [studentCourse, setStudentCourse] = useState<string>('');
     const flatListRef = useRef<FlatList>(null);
+
+    // Fetch student details from user_requests table
+    useEffect(() => {
+        const fetchStudentDetails = async () => {
+            if (!params.studentReg) return;
+
+            try {
+                const { data, error } = await supabase
+                    .from('user_requests')
+                    .select('email, course')
+                    .eq('registration_number', params.studentReg)
+                    .single();
+
+                if (error) {
+                    console.error('Error fetching student details:', error);
+                    return;
+                }
+
+                if (data) {
+                    setStudentEmail(data.email || '');
+                    setStudentCourse(data.course || '');
+                }
+            } catch (error) {
+                console.error('Error fetching student details:', error);
+            }
+        };
+
+        fetchStudentDetails();
+    }, [params.studentReg]);
 
     useEffect(() => {
         loadMessages();
@@ -292,11 +323,11 @@ export default function ExpertChatPage() {
                 </View>
                 <View style={styles.infoRow}>
                     <Text style={styles.infoLabel}>Course:</Text>
-                    <Text style={styles.infoValue}>{params.studentCourse || 'N/A'}</Text>
+                    <Text style={styles.infoValue}>{studentCourse || params.course || 'N/A'}</Text>
                 </View>
                 <View style={styles.infoRow}>
                     <Text style={styles.infoLabel}>Email:</Text>
-                    <Text style={styles.infoValue}>{params.studentEmail || 'N/A'}</Text>
+                    <Text style={styles.infoValue}>{studentEmail || params.email || 'N/A'}</Text>
                 </View>
             </View>
 

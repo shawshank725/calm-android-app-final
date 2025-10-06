@@ -24,6 +24,7 @@ interface SessionRequest {
   studentCourse: string;
   session_date: string;
   session_time: string;
+  booking_mode?: 'online' | 'offline';
   status: 'pending' | 'approved' | 'rejected';
   updated_at: string;
   notes?: string;
@@ -118,6 +119,7 @@ export default function ExpertClientPage() {
           studentCourse: session.student_course || 'N/A',
           session_date: session.session_date || '',
           session_time: session.session_time || '',
+          booking_mode: session.booking_mode || undefined,
           status: session.status || 'pending',
           updated_at: session.updated_at || session.created_at || '',
           notes: session.notes || '',
@@ -336,9 +338,24 @@ export default function ExpertClientPage() {
     }
   };
 
+  const handleChatWithStudent = (session: SessionRequest) => {
+    // Navigate to chat page with student details
+    router.push({
+      pathname: '/expert/expert-chat',
+      params: {
+        expertReg: expertRegNo,
+        expertName: expertName,
+        studentName: session.studentName,
+        studentReg: session.studentReg,
+        email: session.studentEmail,
+        course: session.studentCourse
+      }
+    });
+  };
+
   const renderSessionCard = (session: SessionRequest, index: number) => (
     <View key={`session-${session.id}-${index}`} style={styles.sessionCard}>
-      {/* Status Badge */}
+      {/* Status Badge and Chat Button */}
       <View style={styles.sessionHeader}>
         <View style={[styles.sessionStatusBadge, { backgroundColor: getStatusColor(session.status) + '20' }]}>
           <Text style={styles.sessionStatusIcon}>{getStatusIcon(session.status)}</Text>
@@ -346,6 +363,13 @@ export default function ExpertClientPage() {
             {session.status.charAt(0).toUpperCase() + session.status.slice(1)}
           </Text>
         </View>
+        <TouchableOpacity
+          style={styles.chatIconButton}
+          onPress={() => handleChatWithStudent(session)}
+          activeOpacity={0.7}
+        >
+          <Ionicons name="chatbubble-ellipses" size={24} color={Colors.primary} />
+        </TouchableOpacity>
       </View>
 
       {/* Student Information */}
@@ -391,6 +415,17 @@ export default function ExpertClientPage() {
               <Text style={styles.detailValue}>{session.session_time || 'Not specified'}</Text>
             </View>
           </View>
+          {session.booking_mode && (
+            <View style={styles.detailRow}>
+              <Text style={styles.detailIcon}>{session.booking_mode === 'online' ? '🌐' : '🏢'}</Text>
+              <View style={styles.detailContent}>
+                <Text style={styles.detailLabel}>Mode</Text>
+                <Text style={styles.detailValue}>
+                  {session.booking_mode === 'online' ? 'Online Session' : 'Offline Session'}
+                </Text>
+              </View>
+            </View>
+          )}
           {session.notes && (
             <View style={styles.detailRow}>
               <Text style={styles.detailIcon}>📝</Text>
@@ -796,6 +831,9 @@ const styles = StyleSheet.create({
   },
   sessionHeader: {
     marginBottom: 15,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
   },
   sessionStatusBadge: {
     flexDirection: 'row',
@@ -804,6 +842,16 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     borderRadius: 20,
     alignSelf: 'flex-start',
+  },
+  chatIconButton: {
+    padding: 8,
+    borderRadius: 20,
+    backgroundColor: Colors.accentLight || '#f0f0f0',
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
   },
   sessionStatusIcon: {
     fontSize: 16,
