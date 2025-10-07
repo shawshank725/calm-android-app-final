@@ -11,34 +11,34 @@ export const mandalaTemplates: MandalaTemplate[] = [
     name: 'Mandala 1',
     path: mandala_1_paths,
     strokeWidth: 2,
-    image_url: require('@/assets/images/mandalas/original/mandala 1.jpeg')
+    image_url: require('../../assets/images/mandalas/original/mandala 1.jpeg')
   },
   {
     id: 2,
     name: 'Mandala 2',
     path: mandala_2_paths,
     strokeWidth: 2,
-    image_url: require('@/assets/images/mandalas/original/mandala 2.jpeg')
+    image_url: require('../../assets/images/mandalas/original/mandala 2.jpeg')
   },
   {
     id: 3,
     name: 'Mandala 3',
     path: mandala_3_paths,
     strokeWidth: 2,
-    image_url: require('@/assets/images/mandalas/original/mandala 3.jpeg')
+    image_url: require('../../assets/images/mandalas/original/mandala 3.jpeg')
   },
   {
     id: 4,
     name: 'Mandala 4',
     path: mandala_4_paths,
     strokeWidth: 2,
-    image_url: require('@/assets/images/mandalas/original/mandala 4.jpeg')
+    image_url: require('../../assets/images/mandalas/original/mandala 4.jpeg')
   },
   {
     id: 5,
     name: 'Mandala 5',
     path: mandala_5_paths,
     strokeWidth: 2,
-    image_url: require('@/assets/images/mandalas/original/mandala 5.jpeg')
+    image_url: require('../../assets/images/mandalas/original/mandala 5.jpeg')
   },
 ];

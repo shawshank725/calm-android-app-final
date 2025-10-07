@@ -1230,7 +1230,7 @@ export default function StudentHome() {
                     setSelectedToolkitItem({
                       name: 'Color Mandala',
                       description: 'Coloring mandalas is a meditative practice that helps reduce stress and promotes mindfulness through creative expression.',
-                      route: `./toolkit-mandalas?registration=${studentRegNo}`
+                      route: `./mandala-editor?registration=${studentRegNo}`
                     });
                     setShowToolkitPopup(true);
                   }}
