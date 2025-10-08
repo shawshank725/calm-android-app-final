@@ -95,4 +95,4 @@ This project is licensed under the MIT License.
 
 ## Contact
 
-For any questions or inquiries, please email [calm spaces@sgtuniversity.org](mailto:calm spaces@sgtuniversity.org).
+For any questions or inquiries, please email [calmspaces@sgtuniversity.org](mailto:calmspaces@sgtuniversity.org).
