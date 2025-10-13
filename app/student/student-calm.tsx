@@ -47,6 +47,10 @@ export default function StudentCalm() {
   const [peerListeners, setPeerListeners] = useState<any[]>([]);
   const [loadingPeerListeners, setLoadingPeerListeners] = useState(false);
 
+  // Peer listener time slots state
+  const [peerListenerTimeSlots, setPeerListenerTimeSlots] = useState<any[]>([]);
+  const [loadingPeerTimeSlots, setLoadingPeerTimeSlots] = useState(false);
+
   // Add this state for tracking booked sessions
   const [bookedSessions, setBookedSessions] = useState<string[]>([]);
 
@@ -185,6 +189,151 @@ export default function StudentCalm() {
 
     loadPeerListeners();
   }, []);
+
+  // Load peer listener time slots from expert_schedule table
+  const loadPeerListenerTimeSlots = async (peerRegistration: string, date: string) => {
+    console.log('loadPeerListenerTimeSlots called with:', { peerRegistration, date });
+    setLoadingPeerTimeSlots(true);
+    try {
+      console.log('Loading time slots for peer listener:', peerRegistration, 'on date:', date);
+
+      // First, try to load from expert_schedule
+      let { data: slots, error } = await supabase
+        .from('expert_schedule')
+        .select('*')
+        .eq('expert_registration', peerRegistration)
+        .eq('date', date)
+        .order('start_time', { ascending: true });
+
+      // If no slots found in expert_schedule, try to sync from student_schedule
+      if (!slots || slots.length === 0) {
+        console.log('No slots found in expert_schedule, attempting to sync from student_schedule');
+
+        // Check if peer listener has slots in student_schedule
+        const { data: studentSlots, error: studentError } = await supabase
+          .from('student_schedule')
+          .select('*')
+          .eq('student_registration', peerRegistration)
+          .eq('date', date)
+          .order('start_time', { ascending: true });
+
+        if (studentSlots && studentSlots.length > 0) {
+          console.log('Found student slots, syncing to expert_schedule');
+
+          // Sync slots to expert_schedule
+          for (const slot of studentSlots) {
+            const { error: insertError } = await supabase
+              .from('expert_schedule')
+              .upsert({
+                expert_registration: peerRegistration,
+                expert_name: slot.student_name,
+                date: slot.date,
+                start_time: slot.start_time,
+                end_time: slot.end_time,
+                is_available: slot.is_available,
+                booked_by: slot.booked_by
+              }, {
+                onConflict: 'expert_registration,date,start_time,end_time'
+              });
+
+            if (insertError) {
+              console.error('Error syncing slot to expert_schedule:', insertError);
+            }
+          }
+
+          // Now try loading from expert_schedule again
+          const { data: syncedSlots, error: syncError } = await supabase
+            .from('expert_schedule')
+            .select('*')
+            .eq('expert_registration', peerRegistration)
+            .eq('date', date)
+            .order('start_time', { ascending: true });
+
+          slots = syncedSlots;
+          error = syncError;
+        }
+      }
+
+      if (error) {
+        console.error('Error loading peer listener time slots:', error);
+        setPeerListenerTimeSlots([]);
+        Alert.alert('Error', `Failed to load time slots: ${error.message}`);
+      } else {
+        console.log('Peer listener time slots loaded successfully:', slots?.length || 0, 'slots');
+        console.log('Raw slots data:', JSON.stringify(slots, null, 2));
+
+        // Process slots based on current time
+        const now = new Date();
+        const processedSlots = slots || [];
+        const bookedSlotsToFree: any[] = [];
+        const unbookedSlotsToExpire: any[] = [];
+
+        processedSlots.forEach(slot => {
+          if (!slot.date || !slot.start_time) return;
+
+          // Parse start time (HH:MM:SS format)
+          const [startHours, startMinutes] = slot.start_time.split(':').map(Number);
+          const slotStartDateTime = new Date(slot.date);
+          slotStartDateTime.setHours(startHours, startMinutes, 0, 0);
+
+          // Check if slot start time has passed or started
+          const hasStarted = now >= slotStartDateTime;
+
+          if (hasStarted) {
+            // Case 1: Slot was booked and session ended - free it for future bookings
+            if (!slot.is_available && slot.booked_by && slot.end_time) {
+              const [endHours, endMinutes] = slot.end_time.split(':').map(Number);
+              const slotEndDateTime = new Date(slot.date);
+              slotEndDateTime.setHours(endHours, endMinutes, 0, 0);
+
+              if (now > slotEndDateTime) {
+                console.log(`Past booked session ended - freeing slot: ${slot.date} ${slot.start_time}-${slot.end_time}`);
+                bookedSlotsToFree.push(slot);
+              }
+            }
+            // Case 2: Slot was unbooked and time passed - mark as unavailable
+            else if (slot.is_available) {
+              console.log(`Past unbooked slot expired: ${slot.date} ${slot.start_time}-${slot.end_time}`);
+              unbookedSlotsToExpire.push(slot);
+            }
+          }
+        });
+
+        // Update slots in database
+        for (const slot of bookedSlotsToFree) {
+          await supabase
+            .from('expert_schedule')
+            .update({
+              is_available: true,
+              booked_by: null,
+              booked_at: null
+            })
+            .eq('id', slot.id);
+        }
+
+        for (const slot of unbookedSlotsToExpire) {
+          await supabase
+            .from('expert_schedule')
+            .update({ is_available: false })
+            .eq('id', slot.id);
+        }
+
+        // Filter to only available slots
+        const availableSlots = processedSlots.filter(slot => slot.is_available);
+        setPeerListenerTimeSlots(availableSlots);
+
+        if (availableSlots.length === 0) {
+          Alert.alert('No Slots', 'This peer listener has not set up any time slots for the selected date. Please choose a different date or contact the peer listener.');
+        }
+      }
+    } catch (error) {
+      console.error('Error in loadPeerListenerTimeSlots:', error);
+      setPeerListenerTimeSlots([]);
+      Alert.alert('Error', 'An error occurred while loading time slots.');
+    } finally {
+      setLoadingPeerTimeSlots(false);
+    }
+  };
 
   // Load booked sessions from Supabase
   const loadBookedSessions = async () => {
@@ -510,17 +659,6 @@ export default function StudentCalm() {
     }
   };
 
-  // Define available time slots
-  const timeSlots = [
-    '09:00 AM',
-    '10:00 AM',
-    '11:00 AM',
-    '01:00 PM',
-    '02:00 PM',
-    '03:00 PM',
-    '04:00 PM',
-  ];
-
   const getNext7Days = (): { dateString: string; displayDate: string; dayName: string }[] => {
     const days: { dateString: string; displayDate: string; dayName: string }[] = []; // Explicitly define the type
     for (let i = 0; i < 7; i++) {
@@ -767,7 +905,7 @@ export default function StudentCalm() {
   };
 
   const bookPeerSession = async () => {
-    if (selectedPeerListener && selectedPeerDate && selectedPeerTime) {
+    if (selectedPeerListener && bookingMode && selectedPeerDate && selectedPeerTime) {
       try {
         // Validate required student information
         if (!studentInfo.registration) {
@@ -804,6 +942,7 @@ export default function StudentCalm() {
           expert_name: peerListener?.name || 'Unknown Peer Listener',
           session_date: selectedPeerDate,
           session_time: selectedPeerTime,
+          booking_mode: bookingMode,
           status: 'pending',
           session_type: 'peer_listener',
           reason: `Peer listener session booking request from ${studentInfo.name || studentInfo.username}`,
@@ -856,6 +995,33 @@ export default function StudentCalm() {
             Alert.alert('Error', `Failed to send session request: ${supabaseError.message || supabaseError.details || 'Unknown error'}`);
           }
           return;
+        }
+
+        // Update the expert_schedule table to mark the slot as booked
+        const selectedSlot = peerListenerTimeSlots.find(slot => {
+          const [hours, minutes] = slot.start_time.split(':').map(Number);
+          const period = hours >= 12 ? 'PM' : 'AM';
+          const displayHours = hours % 12 || 12;
+          const displayTime = `${displayHours}:${minutes.toString().padStart(2, '0')} ${period}`;
+          return displayTime === selectedPeerTime;
+        });
+
+        if (selectedSlot) {
+          const { error: slotUpdateError } = await supabase
+            .from('expert_schedule')
+            .update({
+              is_available: false,
+              booked_by: studentInfo.registration,
+              booked_at: new Date().toISOString()
+            })
+            .eq('id', selectedSlot.id);
+
+          if (slotUpdateError) {
+            console.error('Error updating slot availability:', slotUpdateError);
+            // Don't fail the booking if slot update fails, but log it
+          } else {
+            console.log('Successfully marked slot as booked in expert_schedule');
+          }
         }
 
         // Also save to AsyncStorage for backward compatibility and offline access
@@ -1404,6 +1570,8 @@ export default function StudentCalm() {
           setSelectedPeerListener(null);
           setSelectedPeerDate(null);
           setSelectedPeerTime(null);
+          setPeerListenerTimeSlots([]);
+          setBookingMode(null);
         }}
       >
         <View style={styles.modalOverlay}>
@@ -1416,6 +1584,8 @@ export default function StudentCalm() {
                   setSelectedPeerListener(null);
                   setSelectedPeerDate(null);
                   setSelectedPeerTime(null);
+                  setPeerListenerTimeSlots([]);
+                  setBookingMode(null);
                 }}
                 style={styles.modalCloseButton}
               >
@@ -1467,8 +1637,56 @@ export default function StudentCalm() {
                 ))
               )}
 
-              {/* Calendar */}
+              {/* Booking Mode Selection */}
               {selectedPeerListener && (
+                <>
+                  <Text style={styles.sectionTitle}>Select Booking Mode</Text>
+                  <View style={styles.bookingModeContainer}>
+                    <TouchableOpacity
+                      style={[
+                        styles.bookingModeButton,
+                        bookingMode === 'online' && styles.selectedBookingMode
+                      ]}
+                      onPress={() => setBookingMode('online')}
+                    >
+                      <Text style={[
+                        styles.bookingModeIcon,
+                        bookingMode === 'online' && styles.selectedBookingModeText
+                      ]}>🌐</Text>
+                      <Text style={[
+                        styles.bookingModeText,
+                        bookingMode === 'online' && styles.selectedBookingModeText
+                      ]}>Online</Text>
+                      {bookingMode === 'online' && (
+                        <Text style={styles.selectedBookingIcon}>✓</Text>
+                      )}
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                      style={[
+                        styles.bookingModeButton,
+                        bookingMode === 'offline' && styles.selectedBookingMode
+                      ]}
+                      onPress={() => setBookingMode('offline')}
+                    >
+                      <Text style={[
+                        styles.bookingModeIcon,
+                        bookingMode === 'offline' && styles.selectedBookingModeText
+                      ]}>🏢</Text>
+                      <Text style={[
+                        styles.bookingModeText,
+                        bookingMode === 'offline' && styles.selectedBookingModeText
+                      ]}>Offline</Text>
+                      {bookingMode === 'offline' && (
+                        <Text style={styles.selectedBookingIcon}>✓</Text>
+                      )}
+                    </TouchableOpacity>
+                  </View>
+                </>
+              )}
+
+              {/* Calendar */}
+              {selectedPeerListener && bookingMode && (
                 <>
                   <Text style={styles.sectionTitle}>Select Date</Text>
                   <View style={styles.calendarContainer}>
@@ -1479,7 +1697,11 @@ export default function StudentCalm() {
                           styles.dateButton,
                           selectedPeerDate === day.dateString && styles.selectedDateButton
                         ]}
-                        onPress={() => setSelectedPeerDate(day.dateString)}
+                        onPress={() => {
+                          console.log('Date selected:', day.dateString, 'Peer listener:', selectedPeerListener);
+                          setSelectedPeerDate(day.dateString);
+                          loadPeerListenerTimeSlots(selectedPeerListener, day.dateString);
+                        }}
                       >
                         <Text style={[
                           styles.dayName,
@@ -1500,61 +1722,103 @@ export default function StudentCalm() {
               )}
 
               {/* Time Slots */}
-              {selectedPeerListener && selectedPeerDate && (
+              {selectedPeerListener && bookingMode && selectedPeerDate && (
                 <>
                   <Text style={styles.sectionTitle}>Available Time Slots</Text>
 
-                  <View style={styles.timeSlotsContainer}>
-                    {timeSlots.map((time) => {
-                      const isBooked = isSessionBooked(selectedPeerListener, selectedPeerDate, time);
-                      return (
-                        <TouchableOpacity
-                          key={time}
-                          style={[
-                            styles.timeSlot,
-                            isBooked && styles.bookedTimeSlot,
-                            selectedPeerTime === time && styles.selectedTimeSlot,
-                            isBooked && { opacity: 0.5 }
-                          ]}
-                          onPress={() => {
-                            if (isBooked) {
-                              Alert.alert(
-                                'Session Unavailable',
-                                'This time slot is already booked. Please select a different time.',
-                                [{ text: 'OK' }]
-                              );
-                            } else {
-                              setSelectedPeerTime(time);
-                            }
-                          }}
-                          disabled={isBooked}
-                        >
-                          <View style={styles.timeSlotContent}>
-                            <Text style={[
-                              styles.timeText,
-                              isBooked && styles.bookedTimeText,
-                              selectedPeerTime === time && styles.selectedTimeText
-                            ]}>
-                              {time}
-                            </Text>
-                            <View style={[
-                              styles.statusDot,
-                              isBooked && styles.bookedStatusDot,
-                              { backgroundColor: isBooked ? '#f44336' : (selectedPeerTime === time ? '#2196f3' : '#4caf50') }
-                            ]} />
-                            {isBooked && (
-                              <Text style={styles.bookedIndicatorText}>❌</Text>
-                            )}
+                  {loadingPeerTimeSlots ? (
+                    <Text style={styles.loadingText}>Loading time slots...</Text>
+                  ) : peerListenerTimeSlots.length === 0 ? (
+                    <View style={styles.emptySlotContainer}>
+                      <Text style={styles.emptyText}>No time slots available for this date.</Text>
+                      <Text style={styles.emptySubText}>Please select a different date or contact the peer listener directly.</Text>
+                    </View>
+                  ) : (
+                    <>
+                      {/* Legend */}
+                      <View style={styles.legendContainer}>
+                        <Text style={styles.legendTitle}>Status Legend:</Text>
+                        <View style={styles.legendRow}>
+                          <View style={styles.legendItem}>
+                            <View style={[styles.statusDot, { backgroundColor: '#4caf50' }]} />
+                            <Text style={styles.legendText}>Available</Text>
                           </View>
-                        </TouchableOpacity>
-                      );
-                    })}
-                  </View>
+                          <View style={styles.legendItem}>
+                            <View style={[styles.statusDot, { backgroundColor: '#2196f3' }]} />
+                            <Text style={styles.legendText}>Selected</Text>
+                          </View>
+                          <View style={styles.legendItem}>
+                            <View style={[styles.statusDot, styles.bookedStatusDot, { backgroundColor: '#f44336' }]} />
+                            <Text style={styles.legendText}>Booked</Text>
+                          </View>
+                        </View>
+                      </View>
+
+                      <View style={styles.timeSlotsContainer}>
+                      {peerListenerTimeSlots.map((slot) => {
+                        // Format time from database (HH:MM:SS to HH:MM AM/PM)
+                        const formatTime = (timeString: string) => {
+                          const [hours, minutes] = timeString.split(':');
+                          const hour = parseInt(hours);
+                          const ampm = hour >= 12 ? 'PM' : 'AM';
+                          const displayHour = hour > 12 ? hour - 12 : hour === 0 ? 12 : hour;
+                          return `${displayHour}:${minutes} ${ampm}`;
+                        };
+
+                        const timeDisplay = `${formatTime(slot.start_time)} - ${formatTime(slot.end_time)}`;
+                        const timeKey = formatTime(slot.start_time);
+                        const isSelected = selectedPeerTime === timeKey;
+                        const isAvailable = slot.is_available;
+                        return (
+                          <TouchableOpacity
+                            key={slot.id}
+                            style={[
+                              styles.timeSlot,
+                              !isAvailable && styles.bookedTimeSlot,
+                              isSelected && styles.selectedTimeSlot,
+                              !isAvailable && { opacity: 0.6 }
+                            ]}
+                            onPress={() => {
+                              if (!isAvailable) {
+                                Alert.alert(
+                                  'Slot Not Available',
+                                  'This time slot is already booked. Please select a different time.',
+                                  [{ text: 'OK' }]
+                                );
+                              } else {
+                                setSelectedPeerTime(timeKey);
+                              }
+                            }}
+                            disabled={!isAvailable}
+                          >
+                            <View style={styles.timeSlotContent}>
+                              <Text style={[
+                                styles.timeText,
+                                !isAvailable && styles.bookedTimeText,
+                                isSelected && styles.selectedTimeText
+                              ]}>
+                                {timeDisplay}
+                              </Text>
+                              <View style={[
+                                styles.statusDot,
+                                !isAvailable && styles.bookedStatusDot,
+                                { backgroundColor: !isAvailable ? '#f44336' : (isSelected ? '#2196f3' : '#4caf50') }
+                              ]} />
+                              {!isAvailable && (
+                                <Text style={styles.bookedIndicatorText}>❌</Text>
+                              )}
+                            </View>
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </View>
+                    </>
+                  )}
                 </>
               )}
 
               {/* Book Button */}
-              {selectedPeerListener && selectedPeerDate && selectedPeerTime && (
+              {selectedPeerListener && bookingMode && selectedPeerDate && selectedPeerTime && (
                 <TouchableOpacity
                   style={styles.bookButton}
                   onPress={bookPeerSession}

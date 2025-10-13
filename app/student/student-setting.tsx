@@ -23,6 +23,63 @@ const profilePics = [
   require('../../assets/images/profile/pic13.png'),
 ];
 
+// Helper: Try multiple query variants to find a student in user_requests
+async function fetchStudentFromUserRequests(regNo: string) {
+  // Try strict match first (most specific)
+  const attempts = [
+    { filters: { user_type: 'Student', status: 'approved' } },
+    { filters: { user_type: 'Student' } },
+    { filters: { user_type: 'student', status: 'approved' } },
+    { filters: { user_type: 'student' } },
+    { filters: {} },
+  ];
+
+  for (const attempt of attempts) {
+    try {
+      let query = supabase
+        .from('user_requests')
+        .select('*')
+        .eq('registration_number', regNo)
+        .limit(1)
+        .maybeSingle();
+
+      // Apply optional filters
+      const { user_type, status } = attempt.filters as any;
+      // We need to re-build the query with filters because chaining after maybeSingle() isn't allowed
+      let q = supabase.from('user_requests').select('*').eq('registration_number', regNo).limit(1);
+      if (user_type) q = q.eq('user_type', user_type);
+      if (status) q = q.eq('status', status);
+      const { data, error } = await q.maybeSingle();
+      if (error) {
+        // If it's a not-found or no-rows error, continue attempts; otherwise surface
+        // PostgREST returns null data without error when maybeSingle finds 0 rows, so error likely means different issue
+        console.log('fetch attempt error (will try next if null):', error.message);
+      }
+      if (data) {
+        return {
+          name: data.name || data.user_name || 'Unknown Student',
+          user_name: data.name || data.user_name || 'Unknown Student',
+          username: data.username || '',
+          registration: data.registration_number,
+          registration_number: data.registration_number,
+          email: data.email || '',
+          course: data.course || '',
+          phone: data.phone || '',
+          year: data.year || '',
+          user_type: data.user_type,
+          status: data.status,
+          created_at: data.created_at,
+          updated_at: data.updated_at,
+        };
+      }
+    } catch (e: any) {
+      // If a filter or column caused an issue, just try next attempt
+      console.log('fetch attempt threw, continuing:', e?.message ?? e);
+    }
+  }
+  return null;
+}
+
 export default function StudentSetting() {
   const params = useLocalSearchParams<{ registration: string }>();
   const [selectedProfilePic, setSelectedProfilePic] = useState(0);
@@ -199,41 +256,17 @@ export default function StudentSetting() {
     setIsLoading(true);
     try {
       console.log('Refreshing student data from user_requests table...');
-      const { data, error } = await supabase
-        .from('user_requests')
-        .select('*')
-        .eq('registration_number', studentRegNo)
-        .eq('user_type', 'Student')
-        .eq('status', 'approved')
-        .maybeSingle();
-
-      if (error) {
-        console.error('Error refreshing student data:', error);
-        Alert.alert('Database Error', `Failed to refresh student data: ${error.message}`);
-      } else if (data) {
-        console.log('Successfully refreshed student data:', data);
-        const formattedData = {
-          name: data.name || data.user_name || 'Unknown Student',
-          user_name: data.name || data.user_name || 'Unknown Student',
-          username: data.username || '',
-          registration: data.registration_number,
-          registration_number: data.registration_number,
-          email: data.email || '',
-          course: data.course || '',
-          phone: data.phone || '',
-          user_type: data.user_type,
-          created_at: data.created_at,
-          updated_at: data.updated_at
-        };
-
-        // Update state with fresh data
+      const formattedData = await fetchStudentFromUserRequests(studentRegNo);
+      if (formattedData) {
+        console.log('Successfully refreshed student data:', formattedData);
         setStudentName(formattedData.user_name);
         setStudentUsername(formattedData.username);
         setStudentEmail(formattedData.email);
         setStudentCourse(formattedData.course);
         setStudentPhone(formattedData.phone);
+        setStudentYear(formattedData.year);
+        setStudentStatus(formattedData.status);
         setAccountCreatedAt(formattedData.created_at);
-
         // Save refreshed data to storage
         await saveStudentDataToPersistentStorage(studentRegNo, formattedData);
         Alert.alert('Success', 'Student data refreshed successfully!');

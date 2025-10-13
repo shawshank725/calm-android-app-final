@@ -29,8 +29,8 @@ interface TimeSlot {
 }
 
 // Generate default time slots from 9:00 AM to 3:50 PM (50-minute sessions)
-const generateDefaultSlots = (): Array<{ start: string; end: string }> => {
-  const slots: Array<{ start: string; end: string }> = [];
+const generateDefaultSlots = (): { start: string; end: string }[] => {
+  const slots: { start: string; end: string }[] = [];
   // 9:00-9:50, 10:00-10:50, 11:00-11:50, 12:00-12:50, 2:00-2:50, 3:00-3:50
   const hours = [9, 10, 11, 12, 14, 15]; // Skip 13 (1:00 PM)
 

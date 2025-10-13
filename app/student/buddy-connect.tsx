@@ -1,879 +1,1113 @@
+import React, { useState, useEffect } from 'react';
+import { View, TouchableOpacity, Text, Modal, TextInput, Alert, FlatList, Image, ScrollView } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { toByteArray } from 'base64-js';
-import { ResizeMode, Video } from 'expo-av';
-import * as DocumentPicker from 'expo-document-picker';
-import * as FileSystem from 'expo-file-system';
-import { useRouter } from 'expo-router';
-import { useEffect, useState } from 'react';
-import {
-  ActivityIndicator,
-  Alert,
-  Dimensions,
-  FlatList,
-  Image,
-  KeyboardAvoidingView,
-  Modal,
-  Platform,
-  SafeAreaView,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
-} from 'react-native';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Colors } from '../../constants/Colors';
 import { supabase } from '../../lib/supabase';
+import * as MediaLibrary from 'expo-media-library';
+import * as ImagePicker from 'expo-image-picker';
+import * as FileSystem from 'expo-file-system';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
-const { width } = Dimensions.get('window');
-
-interface Post {
-  id: string;
-  user_id: string;
-  user_name: string;
-  user_type: string;
-  content: string;
-  media_url?: string;
-  media_type?: 'image' | 'video' | null;
-  created_at: string;
-  comments_count: number;
-}
-
-interface Comment {
-  id: string;
-  post_id: string;
-  user_id: string;
-  user_name: string;
-  user_type: string;
-  comment_text: string;
-  created_at: string;
-}
+const profilePics = [
+  require('../../assets/images/profile/pic1.png'),
+  require('../../assets/images/profile/pic2.png'),
+  require('../../assets/images/profile/pic3.png'),
+  require('../../assets/images/profile/pic4.png'),
+  require('../../assets/images/profile/pic5.png'),
+  require('../../assets/images/profile/pic6.png'),
+  require('../../assets/images/profile/pic7.png'),
+  require('../../assets/images/profile/pic8.png'),
+  require('../../assets/images/profile/pic9.png'),
+  require('../../assets/images/profile/pic10.png'),
+  require('../../assets/images/profile/pic11.png'),
+  require('../../assets/images/profile/pic12.png'),
+  require('../../assets/images/profile/pic13.png'),
+];
 
 export default function BuddyConnect() {
   const router = useRouter();
-
-  // User info
-  const [studentName, setStudentName] = useState('');
+  const params = useLocalSearchParams();
+  const [modalVisible, setModalVisible] = useState(false);
+  const [postText, setPostText] = useState('');
+  const [selectedMedia, setSelectedMedia] = useState<{ uri: string; type: 'image' | 'video' } | null>(null);
+  const [isPosting, setIsPosting] = useState(false);
   const [studentRegNo, setStudentRegNo] = useState('');
-
-  // Posts
-  const [posts, setPosts] = useState<Post[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-
-  // Create Post
-  const [showCreateModal, setShowCreateModal] = useState(false);
-  const [postContent, setPostContent] = useState('');
-  const [selectedMedia, setSelectedMedia] = useState<any>(null);
-  const [uploading, setUploading] = useState(false);
-
-  // Comments
-  const [showCommentsModal, setShowCommentsModal] = useState(false);
-  const [selectedPost, setSelectedPost] = useState<Post | null>(null);
-  const [comments, setComments] = useState<Comment[]>([]);
-  const [commentText, setCommentText] = useState('');
-  const [loadingComments, setLoadingComments] = useState(false);
-  const [postingComment, setPostingComment] = useState(false);
+  const [posts, setPosts] = useState<any[]>([]);
+  const [loadingPosts, setLoadingPosts] = useState(true);
+  const [commentsModalVisible, setCommentsModalVisible] = useState(false);
+  const [selectedPostForComments, setSelectedPostForComments] = useState<any>(null);
+  const [comments, setComments] = useState<any[]>([]);
+  const [newComment, setNewComment] = useState('');
 
   useEffect(() => {
-    loadUserInfo();
-    loadPosts();
+    const loadStudentRegNo = async () => {
+      try {
+        // First try to get from params
+        let regNo = params.registration as string;
+        
+        // If not in params, try AsyncStorage
+        if (!regNo) {
+          regNo = await AsyncStorage.getItem('currentStudentReg') || '';
+        }
+        
+        // If we have a registration number, save it for future use
+        if (regNo) {
+          setStudentRegNo(regNo);
+          await AsyncStorage.setItem('currentStudentReg', regNo);
+        }
+      } catch (error) {
+        console.error('Error loading student registration:', error);
+      }
+    };
+
+    loadStudentRegNo();
+  }, [params.registration]);
+
+  useEffect(() => {
+    fetchPosts();
   }, []);
-
-  const loadUserInfo = async () => {
-    try {
-      const name = await AsyncStorage.getItem('studentName');
-      const regNo = await AsyncStorage.getItem('studentRegNo');
-      if (name) setStudentName(name);
-      if (regNo) setStudentRegNo(regNo);
-    } catch (error) {
-      console.error('Error loading user info:', error);
-    }
-  };
-
-  const loadPosts = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('community_posts')
-        .select('*')
-        .order('created_at', { ascending: false });
-
-      if (error) throw error;
-
-      // Get comment counts for each post
-      const postsWithCounts = await Promise.all(
-        (data || []).map(async (post) => {
-          const { count } = await supabase
-            .from('post_comments')
-            .select('*', { count: 'exact', head: true })
-            .eq('post_id', post.id);
-
-          return { ...post, comments_count: count || 0 };
-        })
-      );
-
-      setPosts(postsWithCounts);
-    } catch (error) {
-      console.error('Error loading posts:', error);
-      Alert.alert('Error', 'Failed to load posts');
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  };
-
-  const handleRefresh = () => {
-    setRefreshing(true);
-    loadPosts();
-  };
 
   const pickMedia = async () => {
     try {
-      const result = await DocumentPicker.getDocumentAsync({
-        type: ['image/*', 'video/*'],
-        copyToCacheDirectory: true,
+      // Request permissions for both camera roll and media library
+      const { status: mediaStatus } = await MediaLibrary.requestPermissionsAsync();
+      const { status: imagePickerStatus } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+
+      if (mediaStatus !== 'granted' || imagePickerStatus !== 'granted') {
+        Alert.alert('Permission needed', 'Please grant media library permissions to select photos and videos.');
+        return;
+      }
+
+      // Launch the native image picker/gallery
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.All, // Both images and videos
+        allowsEditing: false,
+        aspect: [4, 3],
+        quality: 0.8,
       });
 
       if (!result.canceled && result.assets && result.assets.length > 0) {
-        const file = result.assets[0];
+        const asset = result.assets[0];
+        const type = asset.type === 'video' ? 'video' : 'image';
 
-        // Check file size (max 50MB)
-        const maxSize = 50 * 1024 * 1024;
-        if (file.size && file.size > maxSize) {
-          Alert.alert('File Too Large', 'Please select a file smaller than 50MB');
-          return;
-        }
-
-        setSelectedMedia(file);
+        setSelectedMedia({
+          uri: asset.uri,
+          type,
+        });
       }
     } catch (error) {
       console.error('Error picking media:', error);
-      Alert.alert('Error', 'Failed to select media');
+      Alert.alert('Error', 'Failed to open gallery. Please try again.');
     }
   };
 
-  const uploadMediaToStorage = async (file: any): Promise<string | null> => {
+
+
+  const uploadMediaToSupabase = async (uri: string, type: 'image' | 'video') => {
     try {
+      console.log('Starting media upload for URI:', uri, 'Type:', type);
+
+      // Validate URI
+      if (!uri || !uri.startsWith('file://')) {
+        throw new Error('Invalid file URI provided');
+      }
+
+      const fileName = `${Date.now()}_${Math.random().toString(36).substring(7)}.${type === 'image' ? 'jpg' : 'mp4'}`;
+      const filePath = `community/${fileName}`;
+
+      console.log('Generated file path:', filePath);
+
+      // Check if file exists
+      const fileInfo = await FileSystem.getInfoAsync(uri);
+      if (!fileInfo.exists) {
+        throw new Error('File does not exist at the provided URI');
+      }
+
+      console.log('File exists, size:', fileInfo.size);
+
       // Read file as base64
-      const base64Data = await FileSystem.readAsStringAsync(file.uri, {
+      const base64 = await FileSystem.readAsStringAsync(uri, {
         encoding: FileSystem.EncodingType.Base64,
       });
 
-      // Convert to bytes
-      const fileBytes = toByteArray(base64Data);
+      console.log('File read as base64, length:', base64.length);
 
-      // Create unique filename
-      const timestamp = Date.now();
-      const fileExtension = file.name.split('.').pop() || 'file';
-      const storagePath = `community/${studentRegNo}/${timestamp}.${fileExtension}`;
+      // Convert base64 to Uint8Array
+      const binaryString = atob(base64);
+      const bytes = new Uint8Array(binaryString.length);
+      for (let i = 0; i < binaryString.length; i++) {
+        bytes[i] = binaryString.charCodeAt(i);
+      }
 
-      // Upload to Supabase Storage
-      const { error: uploadError } = await supabase.storage
-        .from('resources')
-        .upload(storagePath, fileBytes, {
-          contentType: file.mimeType || 'application/octet-stream',
+      console.log('Converted to bytes, length:', bytes.length);
+
+      // Upload to Supabase storage
+      const { data, error } = await supabase.storage
+        .from('media')
+        .upload(filePath, bytes, {
+          contentType: type === 'image' ? 'image/jpeg' : 'video/mp4',
           upsert: false,
         });
 
-      if (uploadError) throw uploadError;
+      if (error) {
+        console.error('Supabase upload error:', error);
+        throw new Error(`Supabase upload failed: ${error.message}`);
+      }
+
+      console.log('Upload successful, data:', data);
 
       // Get public URL
       const { data: urlData } = supabase.storage
-        .from('resources')
-        .getPublicUrl(storagePath);
+        .from('media')
+        .getPublicUrl(filePath);
 
-      return urlData?.publicUrl || null;
+      if (!urlData?.publicUrl) {
+        throw new Error('Failed to get public URL for uploaded media');
+      }
+
+      console.log('Public URL generated:', urlData.publicUrl);
+      return urlData.publicUrl;
     } catch (error) {
       console.error('Error uploading media:', error);
-      throw error;
+      throw new Error(`Failed to upload media: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   };
 
   const createPost = async () => {
-    if (!postContent.trim() && !selectedMedia) {
-      Alert.alert('Error', 'Please add some content or media');
+    if (!postText.trim() && !selectedMedia) {
+      Alert.alert('Error', 'Please add some text or media to your post.');
       return;
     }
 
+    setIsPosting(true);
     try {
-      setUploading(true);
+      console.log('Starting post creation...');
 
       let mediaUrl = null;
-      let mediaType = null;
 
       // Upload media if selected
       if (selectedMedia) {
-        mediaUrl = await uploadMediaToStorage(selectedMedia);
-        mediaType = selectedMedia.mimeType?.startsWith('video/') ? 'video' : 'image';
+        console.log('Uploading media...', selectedMedia);
+        try {
+          mediaUrl = await uploadMediaToSupabase(selectedMedia.uri, selectedMedia.type);
+          console.log('Media uploaded successfully:', mediaUrl);
+        } catch (mediaError) {
+          console.error('Media upload failed:', mediaError);
+          Alert.alert('Error', `Failed to upload media: ${mediaError instanceof Error ? mediaError.message : 'Unknown error'}`);
+          return;
+        }
       }
 
-      // Create post in database
-      const { error } = await supabase
-        .from('community_posts')
-        .insert({
-          user_id: studentRegNo,
-          user_name: studentName,
-          user_type: 'student',
-          content: postContent,
-          media_url: mediaUrl,
-          media_type: mediaType,
-          created_at: new Date().toISOString(),
-        });
+      // Get current user ID (student registration number)
+      const userId = studentRegNo;
+      console.log('User ID:', userId);
 
-      if (error) throw error;
+      if (!userId) {
+        Alert.alert('Error', 'User not authenticated. Please log in again.');
+        return;
+      }
 
+      // Insert post into community_post table
+      console.log('Inserting post into database...');
+      const { data, error } = await supabase
+        .from('community_post')
+        .insert([
+          {
+            user_id: userId,
+            content: postText.trim(),
+            media_url: mediaUrl,
+            media_type: selectedMedia?.type || null,
+            created_at: new Date().toISOString(),
+          },
+        ])
+        .select();
+
+      if (error) {
+        console.error('Database insert error:', error);
+        throw error;
+      }
+
+      console.log('Post created successfully:', data);
+
+      // Success
       Alert.alert('Success', 'Post created successfully!');
-      setShowCreateModal(false);
-      setPostContent('');
+      setModalVisible(false);
+      setPostText('');
       setSelectedMedia(null);
-      loadPosts();
+
+      // Refresh posts
+      fetchPosts();
+
     } catch (error) {
       console.error('Error creating post:', error);
-      Alert.alert('Error', 'Failed to create post');
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+      Alert.alert('Error', `Failed to create post: ${errorMessage}`);
     } finally {
-      setUploading(false);
+      setIsPosting(false);
     }
   };
 
-  const loadComments = async (postId: string) => {
+  const fetchPosts = async () => {
     try {
-      setLoadingComments(true);
+      setLoadingPosts(true);
       const { data, error } = await supabase
-        .from('post_comments')
+        .from('community_post')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        console.error('Error fetching posts:', error);
+        Alert.alert('Error', 'Failed to load posts');
+        return;
+      }
+
+      // Fetch user data for each post
+      const postsWithUserData = await Promise.all(
+        (data || []).map(async (post) => {
+          try {
+            let username = `User ${post.user_id}`;
+            let userType = 'student';
+
+            // Try multiple tables to get user data
+            // 1. Try user_requests table (general users)
+            const { data: userData, error: userError } = await supabase
+              .from('user_requests')
+              .select('username, name')
+              .eq('registration_number', post.user_id)
+              .single();
+
+            if (userData?.username || userData?.name) {
+              username = userData.username || userData.name;
+            } else {
+              // 2. Try student_registrations table
+              const { data: studentData } = await supabase
+                .from('student_registrations')
+                .select('name, username')
+                .eq('registration', post.user_id)
+                .single();
+
+              if (studentData?.name || studentData?.username) {
+                username = studentData.name || studentData.username;
+                userType = 'student';
+              }
+            }
+
+            // Get profile picture index from AsyncStorage
+            let profilePicIndex = 0;
+            try {
+              const storedPic = await AsyncStorage.getItem(`profilePic_${post.user_id}`);
+              if (storedPic !== null) {
+                profilePicIndex = parseInt(storedPic, 10);
+              }
+            } catch (picError) {
+              console.log('Error getting profile pic for user:', post.user_id);
+            }
+
+            return {
+              ...post,
+              username: username,
+              userType: userType,
+              profilePicIndex: profilePicIndex,
+            };
+          } catch (userError) {
+            console.log('Error fetching user data for post:', post.id, userError);
+            return {
+              ...post,
+              username: `User ${post.user_id}`,
+              userType: 'student',
+              profilePicIndex: 0,
+            };
+          }
+        })
+      );
+
+      setPosts(postsWithUserData);
+    } catch (error) {
+      console.error('Error fetching posts:', error);
+      Alert.alert('Error', 'Failed to load posts');
+    } finally {
+      setLoadingPosts(false);
+    }
+  };
+
+  const fetchComments = async (postId: string) => {
+    try {
+      const { data, error } = await supabase
+        .from('post_comment')
         .select('*')
         .eq('post_id', postId)
         .order('created_at', { ascending: true });
 
-      if (error) throw error;
-      setComments(data || []);
+      if (error) {
+        console.error('Error fetching comments:', error);
+        return;
+      }
+
+      // Fetch user data for each comment
+      const commentsWithUserData = await Promise.all(
+        (data || []).map(async (comment) => {
+          try {
+            let username = `User ${comment.user_id}`;
+            let userType = 'student';
+
+            // Try multiple tables to get user data
+            // 1. Try user_requests table (general users)
+            const { data: userData, error: userError } = await supabase
+              .from('user_requests')
+              .select('username, name')
+              .eq('registration_number', comment.user_id)
+              .single();
+
+            if (userData?.username || userData?.name) {
+              username = userData.username || userData.name;
+            } else {
+              // 2. Try student_registrations table
+              const { data: studentData } = await supabase
+                .from('student_registrations')
+                .select('name, username')
+                .eq('registration', comment.user_id)
+                .single();
+
+              if (studentData?.name || studentData?.username) {
+                username = studentData.name || studentData.username;
+                userType = 'student';
+              }
+            }
+
+            // Get profile picture index from AsyncStorage
+            let profilePicIndex = 0;
+            try {
+              const storedPic = await AsyncStorage.getItem(`profilePic_${comment.user_id}`);
+              if (storedPic !== null) {
+                profilePicIndex = parseInt(storedPic, 10);
+              }
+            } catch (picError) {
+              console.log('Error getting profile pic for comment user:', comment.user_id);
+            }
+
+            return {
+              ...comment,
+              username: username,
+              userType: userType,
+              profilePicIndex: profilePicIndex,
+            };
+          } catch (userError) {
+            console.log('Error fetching user data for comment:', comment.id, userError);
+            return {
+              ...comment,
+              username: `User ${comment.user_id}`,
+              userType: 'student',
+              profilePicIndex: 0,
+            };
+          }
+        })
+      );
+
+      setComments(commentsWithUserData);
     } catch (error) {
-      console.error('Error loading comments:', error);
-      Alert.alert('Error', 'Failed to load comments');
-    } finally {
-      setLoadingComments(false);
+      console.error('Error fetching comments:', error);
     }
   };
 
-  const openCommentsModal = (post: Post) => {
-    setSelectedPost(post);
-    setShowCommentsModal(true);
-    loadComments(post.id);
-  };
-
-  const postComment = async () => {
-    if (!commentText.trim() || !selectedPost) return;
+  const addComment = async () => {
+    if (!newComment.trim() || !selectedPostForComments) return;
 
     try {
-      setPostingComment(true);
+      const { data, error } = await supabase
+        .from('post_comment')
+        .insert([
+          {
+            post_id: selectedPostForComments.id,
+            user_id: studentRegNo,
+            content: newComment.trim(),
+            created_at: new Date().toISOString(),
+          },
+        ])
+        .select();
 
-      const { error } = await supabase
-        .from('post_comments')
-        .insert({
-          post_id: selectedPost.id,
-          user_id: studentRegNo,
-          user_name: studentName,
-          user_type: 'student',
-          comment_text: commentText,
-          created_at: new Date().toISOString(),
-        });
+      if (error) {
+        console.error('Error adding comment:', error);
+        Alert.alert('Error', 'Failed to add comment');
+        return;
+      }
 
-      if (error) throw error;
+      // Refresh comments to get updated user data
+      await fetchComments(selectedPostForComments.id);
+      setNewComment('');
 
-      setCommentText('');
-      loadComments(selectedPost.id);
-
-      // Update comment count in posts list
-      setPosts(posts.map(p =>
-        p.id === selectedPost.id
-          ? { ...p, comments_count: p.comments_count + 1 }
-          : p
-      ));
+      // Update comment count in posts
+      setPosts(prevPosts =>
+        prevPosts.map(post =>
+          post.id === selectedPostForComments.id
+            ? { ...post, comment_count: (post.comment_count || 0) + 1 }
+            : post
+        )
+      );
     } catch (error) {
-      console.error('Error posting comment:', error);
-      Alert.alert('Error', 'Failed to post comment');
-    } finally {
-      setPostingComment(false);
+      console.error('Error adding comment:', error);
+      Alert.alert('Error', 'Failed to add comment');
     }
   };
 
-  const formatTimeAgo = (dateString: string) => {
-    const date = new Date(dateString);
-    const now = new Date();
-    const seconds = Math.floor((now.getTime() - date.getTime()) / 1000);
 
-    if (seconds < 60) return 'Just now';
-    if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
-    if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`;
-    if (seconds < 604800) return `${Math.floor(seconds / 86400)}d ago`;
+
+  const deletePost = async (post: any) => {
+    console.log('Delete button clicked for post ID:', post.id, 'by user:', studentRegNo);
+
+    // Check if the current user is the author of the post
+    if (post.user_id !== studentRegNo) {
+      console.log('Delete denied: User', studentRegNo, 'is not the author of post', post.id);
+      Alert.alert('Error', 'You can only delete your own posts');
+      return;
+    }
+
+    console.log('Delete authorized: User is the post author, proceeding with deletion');
+
+    // Show confirmation alert
+    Alert.alert(
+      'Delete Post',
+      'Are you sure you want to delete this post? This action cannot be undone.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              // First, delete all comments associated with this post
+              const { error: commentsError } = await supabase
+                .from('post_comment')
+                .delete()
+                .eq('post_id', post.id);
+
+              if (commentsError) {
+                console.error('Error deleting comments:', commentsError);
+                // Continue with post deletion even if comments deletion fails
+              }
+
+              // Delete media file from storage if it exists
+              if (post.media_url) {
+                try {
+                  // Extract file path from the public URL
+                  const urlParts = post.media_url.split('/storage/v1/object/public/media/');
+                  if (urlParts.length > 1) {
+                    const filePath = urlParts[1];
+                    const { error: storageError } = await supabase.storage
+                      .from('media')
+                      .remove([filePath]);
+
+                    if (storageError) {
+                      console.error('Error deleting media file:', storageError);
+                      // Continue with post deletion even if media deletion fails
+                    }
+                  }
+                } catch (storageError) {
+                  console.error('Error deleting media file:', storageError);
+                  // Continue with post deletion even if media deletion fails
+                }
+              }
+
+              // Delete the post from Supabase community_post table
+              console.log('Deleting post , post ID:', post.id);
+              const { error } = await supabase
+                .from('community_post')
+                .delete()
+                .eq('id', post.id);
+
+              if (error) {
+                console.error('Error deleting post:', error);
+                Alert.alert('Error', 'Failed to delete post from database');
+                return;
+              }
+
+              console.log('Successfully deleted post');
+
+              // Remove the post from local state
+              setPosts(prevPosts => prevPosts.filter(p => p.id !== post.id));
+              console.log('Post removed from local state, UI updated');
+              Alert.alert('Success', 'Post deleted associated data removed');
+            } catch (error) {
+              console.error('Error deleting post:', error);
+              Alert.alert('Error', 'Failed to delete post');
+            }
+          }
+        },
+      ]
+    );
+  };
+
+  const openComments = async (post: any) => {
+    setSelectedPostForComments(post);
+    setCommentsModalVisible(true);
+    await fetchComments(post.id);
+  };
+
+  const formatRelativeTime = (dateString: string) => {
+    const now = new Date();
+    const date = new Date(dateString);
+    const diffInSeconds = Math.floor((now.getTime() - date.getTime()) / 1000);
+
+    if (diffInSeconds < 60) return 'Just now';
+    if (diffInSeconds < 3600) return `${Math.floor(diffInSeconds / 60)}m ago`;
+    if (diffInSeconds < 86400) return `${Math.floor(diffInSeconds / 3600)}h ago`;
+    if (diffInSeconds < 604800) return `${Math.floor(diffInSeconds / 86400)}d ago`;
+    
     return date.toLocaleDateString();
   };
 
-  const renderPost = ({ item }: { item: Post }) => (
-    <View style={styles.postCard}>
-      <View style={styles.postHeader}>
-        <View style={styles.avatarContainer}>
-          <Text style={styles.avatarText}>{item.user_name.charAt(0).toUpperCase()}</Text>
-        </View>
-        <View style={styles.postHeaderInfo}>
-          <Text style={styles.userName}>{item.user_name}</Text>
-          <Text style={styles.postTime}>{formatTimeAgo(item.created_at)}</Text>
-        </View>
-      </View>
-
-      {item.content ? (
-        <Text style={styles.postContent}>{item.content}</Text>
-      ) : null}
-
-      {item.media_url && item.media_type === 'image' && (
-        <Image
-          source={{ uri: item.media_url }}
-          style={styles.postImage}
-          resizeMode="cover"
-        />
-      )}
-
-      {item.media_url && item.media_type === 'video' && (
-        <Video
-          source={{ uri: item.media_url }}
-          style={styles.postVideo}
-          useNativeControls
-          resizeMode={ResizeMode.CONTAIN}
-        />
-      )}
-
-      <View style={styles.postFooter}>
-        <TouchableOpacity
-          style={styles.commentButton}
-          onPress={() => openCommentsModal(item)}
-        >
-          <Ionicons name="chatbubble-outline" size={20} color={Colors.primary} />
-          <Text style={styles.commentButtonText}>
-            {item.comments_count} {item.comments_count === 1 ? 'Comment' : 'Comments'}
-          </Text>
-        </TouchableOpacity>
-      </View>
-    </View>
-  );
-
-  if (loading) {
-    return (
-      <SafeAreaView style={styles.container}>
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={Colors.primary} />
-          <Text style={styles.loadingText}>Loading community feed...</Text>
-        </View>
-      </SafeAreaView>
-    );
-  }
-
   return (
-    <SafeAreaView style={styles.container}>
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()}>
-          <Ionicons name="arrow-back" size={24} color={Colors.text} />
+    <View style={{ flex: 1, backgroundColor: Colors.background }}>
+      <View style={{
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        paddingHorizontal: 20,
+        paddingTop: 50,
+        paddingBottom: 20,
+        backgroundColor: Colors.primary,
+        borderBottomWidth: 1,
+        borderBottomColor: Colors.border,
+      }}>
+        <TouchableOpacity
+          style={{
+            flexDirection: 'row',
+            alignItems: 'center',
+            padding: 8,
+          }}
+          onPress={() => router.push('/student/student-home')}
+        >
+          <Ionicons name="arrow-back" size={20} color={Colors.white} />
+          <Text style={{ marginLeft: 8, color: Colors.white, fontSize: 16 }}>Back</Text>
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>🌟 Buddy Connect</Text>
-        <TouchableOpacity onPress={() => setShowCreateModal(true)}>
-          <Ionicons name="add-circle" size={28} color={Colors.primary} />
+        
+        <Text style={{
+          fontSize: 20,
+          fontWeight: 'bold',
+          color: Colors.white,
+          textAlign: 'center',
+        }}>
+          Community
+        </Text>
+        
+        <TouchableOpacity
+          style={{
+            padding: 8,
+          }}
+          onPress={() => setModalVisible(true)}
+        >
+          <Ionicons name="add" size={24} color={Colors.white} />
         </TouchableOpacity>
       </View>
 
-      {/* Posts Feed */}
+      {/* Posts List */}
       <FlatList
         data={posts}
-        renderItem={renderPost}
         keyExtractor={(item) => item.id}
-        contentContainerStyle={styles.feedContainer}
-        refreshing={refreshing}
-        onRefresh={handleRefresh}
-        ListEmptyComponent={
-          <View style={styles.emptyContainer}>
-            <Text style={styles.emptyIcon}>📝</Text>
-            <Text style={styles.emptyText}>No posts yet</Text>
-            <Text style={styles.emptySubtext}>Be the first to share something!</Text>
-          </View>
-        }
-      />
-
-      {/* Create Post Modal */}
-      <Modal
-        visible={showCreateModal}
-        animationType="slide"
-        transparent={true}
-      >
-        <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-          style={styles.modalOverlay}
-        >
-          <View style={styles.createPostModal}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Create Post</Text>
-              <TouchableOpacity onPress={() => {
-                setShowCreateModal(false);
-                setPostContent('');
-                setSelectedMedia(null);
-              }}>
-                <Ionicons name="close" size={28} color={Colors.text} />
-              </TouchableOpacity>
+        renderItem={({ item }) => (
+          <View style={{
+            backgroundColor: Colors.surface,
+            margin: 10,
+            borderRadius: 15,
+            padding: 15,
+            shadowColor: Colors.shadow,
+            shadowOffset: { width: 0, height: 2 },
+            shadowOpacity: 0.1,
+            shadowRadius: 4,
+            elevation: 3,
+          }}>
+            <View style={{
+              flexDirection: 'row',
+              alignItems: 'center',
+              marginBottom: 10,
+            }}>
+              <Image
+                source={profilePics[item.profilePicIndex || 0]}
+                style={{
+                  width: 40,
+                  height: 40,
+                  borderRadius: 20,
+                  marginRight: 10,
+                  borderWidth: 2,
+                  borderColor: Colors.primary,
+                }}
+              />
+              <View style={{ flex: 1 }}>
+                <Text style={{
+                  fontSize: 14,
+                  fontWeight: 'bold',
+                  color: Colors.text,
+                }}>
+                  {item.username}
+                </Text>
+                <Text style={{
+                  fontSize: 12,
+                  color: Colors.textSecondary,
+                }}>
+                  {formatRelativeTime(item.created_at)}
+                </Text>
+              </View>
+              {item.user_id === studentRegNo && (
+                <TouchableOpacity
+                  style={{
+                    padding: 8,
+                    borderRadius: 20,
+                    backgroundColor: Colors.error,
+                  }}
+                  onPress={() => deletePost(item)}
+                >
+                  <Ionicons name="trash" size={16} color={Colors.white} />
+                </TouchableOpacity>
+              )}
             </View>
 
-            <ScrollView style={styles.modalContent}>
-              <TextInput
-                style={styles.postInput}
-                placeholder="What's on your mind?"
-                placeholderTextColor={Colors.textSecondary}
-                value={postContent}
-                onChangeText={setPostContent}
-                multiline
-                numberOfLines={4}
-              />
+            {item.content && (
+              <Text style={{
+                fontSize: 16,
+                color: Colors.text,
+                marginBottom: 10,
+                lineHeight: 22,
+              }}>
+                {item.content}
+              </Text>
+            )}
 
-              {selectedMedia && (
-                <View style={styles.selectedMediaContainer}>
-                  {selectedMedia.mimeType?.startsWith('image/') ? (
-                    <Image
-                      source={{ uri: selectedMedia.uri }}
-                      style={styles.selectedMediaPreview}
-                    />
-                  ) : (
-                    <View style={styles.videoPreviewContainer}>
-                      <Ionicons name="videocam" size={50} color={Colors.primary} />
-                      <Text style={styles.videoName}>{selectedMedia.name}</Text>
-                    </View>
-                  )}
-                  <TouchableOpacity
-                    style={styles.removeMediaButton}
-                    onPress={() => setSelectedMedia(null)}
-                  >
-                    <Ionicons name="close-circle" size={30} color={Colors.error} />
-                  </TouchableOpacity>
-                </View>
-              )}
-
-              <TouchableOpacity
-                style={styles.addMediaButton}
-                onPress={pickMedia}
-                disabled={uploading}
-              >
-                <Ionicons name="image" size={24} color={Colors.primary} />
-                <Text style={styles.addMediaText}>Add Photo/Video</Text>
-              </TouchableOpacity>
-            </ScrollView>
+            {item.media_url && (
+              <View style={{ marginBottom: 10 }}>
+                {item.media_type === 'image' ? (
+                  <Image
+                    source={{ uri: item.media_url }}
+                    style={{
+                      width: '100%',
+                      height: 200,
+                      borderRadius: 10,
+                    }}
+                    resizeMode="cover"
+                  />
+                ) : (
+                  <View style={{
+                    width: '100%',
+                    height: 200,
+                    backgroundColor: '#000',
+                    borderRadius: 10,
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}>
+                    <Ionicons name="videocam" size={48} color={Colors.white} />
+                    <Text style={{
+                      color: Colors.white,
+                      marginTop: 10,
+                      fontSize: 14,
+                    }}>
+                      Video
+                    </Text>
+                  </View>
+                )}
+              </View>
+            )}
 
             <TouchableOpacity
-              style={[styles.postButton, uploading && styles.postButtonDisabled]}
-              onPress={createPost}
-              disabled={uploading}
+              style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                padding: 8,
+                backgroundColor: Colors.background,
+                borderRadius: 8,
+                alignSelf: 'flex-start',
+              }}
+              onPress={() => openComments(item)}
             >
-              {uploading ? (
-                <ActivityIndicator color={Colors.white} />
-              ) : (
-                <Text style={styles.postButtonText}>Post</Text>
-              )}
+              <Ionicons name="chatbubble-outline" size={16} color={Colors.primary} />
+              <Text style={{
+                marginLeft: 5,
+                color: Colors.primary,
+                fontSize: 14,
+                fontWeight: '600',
+              }}>
+                Comments
+              </Text>
             </TouchableOpacity>
           </View>
-        </KeyboardAvoidingView>
+        )}
+        ListEmptyComponent={
+          loadingPosts ? (
+            <View style={{
+              alignItems: 'center',
+              padding: 50,
+            }}>
+              <Text style={{
+                color: Colors.textSecondary,
+                fontSize: 16,
+              }}>
+                Loading posts...
+              </Text>
+            </View>
+          ) : (
+            <View style={{
+              alignItems: 'center',
+              padding: 50,
+            }}>
+              <Text style={{
+                color: Colors.textSecondary,
+                fontSize: 16,
+              }}>
+                No posts yet. Be the first to share!
+              </Text>
+            </View>
+          )
+        }
+        contentContainerStyle={{ paddingBottom: 20 }}
+      />
+
+      <Modal
+        animationType="slide"
+        transparent={true}
+        visible={modalVisible}
+        onRequestClose={() => setModalVisible(false)}
+      >
+        <View style={{
+          flex: 1,
+          justifyContent: 'center',
+          alignItems: 'center',
+          backgroundColor: 'rgba(0,0,0,0.5)',
+        }}>
+          <View style={{
+            backgroundColor: Colors.surface,
+            borderRadius: 20,
+            padding: 20,
+            width: '90%',
+            maxHeight: '80%',
+          }}>
+            <Text style={{
+              fontSize: 18,
+              fontWeight: 'bold',
+              color: Colors.text,
+              marginBottom: 20,
+              textAlign: 'center',
+            }}>
+              Create New Post
+            </Text>
+            
+            <TextInput
+              style={{
+                borderWidth: 1,
+                borderColor: Colors.border,
+                borderRadius: 10,
+                padding: 15,
+                fontSize: 16,
+                color: Colors.text,
+                minHeight: 100,
+                textAlignVertical: 'top',
+                marginBottom: 20,
+              }}
+              placeholder="Share your thoughts..."
+              placeholderTextColor={Colors.textSecondary}
+              multiline
+              value={postText}
+              onChangeText={setPostText}
+            />
+            
+            {selectedMedia && (
+              <View style={{
+                marginBottom: 20,
+                padding: 10,
+                backgroundColor: Colors.background,
+                borderRadius: 10,
+                alignItems: 'center',
+              }}>
+                <Text style={{
+                  color: Colors.text,
+                  fontSize: 14,
+                  marginBottom: 10,
+                }}>
+                  Selected {selectedMedia.type}:
+                </Text>
+                <Text style={{
+                  color: Colors.textSecondary,
+                  fontSize: 12,
+                }}>
+                  {selectedMedia.uri.split('/').pop()}
+                </Text>
+                <TouchableOpacity
+                  style={{
+                    marginTop: 10,
+                    padding: 5,
+                  }}
+                  onPress={() => setSelectedMedia(null)}
+                >
+                  <Ionicons name="close" size={20} color={Colors.error} />
+                </TouchableOpacity>
+              </View>
+            )}
+            
+            <View style={{
+              alignItems: 'center',
+              marginBottom: 30,
+            }}>
+              <TouchableOpacity
+                style={{
+                  alignItems: 'center',
+                  padding: 20,
+                  backgroundColor: Colors.background,
+                  borderRadius: 15,
+                  width: '60%',
+                }}
+                onPress={() => pickMedia()}
+              >
+                <Ionicons name="images" size={32} color={Colors.primary} />
+                <Text style={{
+                  color: Colors.primary,
+                  fontSize: 16,
+                  fontWeight: '600',
+                  marginTop: 8,
+                }}>
+                  image/videos
+                </Text>
+              </TouchableOpacity>
+            </View>
+            
+            <View style={{
+              flexDirection: 'row',
+              justifyContent: 'space-between',
+            }}>
+              <TouchableOpacity
+                style={{
+                  backgroundColor: Colors.background,
+                  paddingHorizontal: 20,
+                  paddingVertical: 12,
+                  borderRadius: 10,
+                  flex: 1,
+                  marginRight: 10,
+                  alignItems: 'center',
+                }}
+                onPress={() => setModalVisible(false)}
+              >
+                <Text style={{
+                  color: Colors.text,
+                  fontSize: 16,
+                  fontWeight: '600',
+                }}>
+                  Cancel
+                </Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity
+                style={{
+                  backgroundColor: Colors.primary,
+                  paddingHorizontal: 20,
+                  paddingVertical: 12,
+                  borderRadius: 10,
+                  flex: 1,
+                  marginLeft: 10,
+                  alignItems: 'center',
+                  opacity: isPosting ? 0.6 : 1,
+                }}
+                onPress={createPost}
+                disabled={isPosting}
+              >
+                <Text style={{
+                  color: Colors.white,
+                  fontSize: 16,
+                  fontWeight: '600',
+                }}>
+                  {isPosting ? 'Posting...' : 'Post'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
       </Modal>
 
       {/* Comments Modal */}
       <Modal
-        visible={showCommentsModal}
         animationType="slide"
         transparent={true}
+        visible={commentsModalVisible}
+        onRequestClose={() => setCommentsModalVisible(false)}
       >
-        <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-          style={styles.modalOverlay}
-        >
-          <View style={styles.commentsModal}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Comments</Text>
-              <TouchableOpacity onPress={() => {
-                setShowCommentsModal(false);
-                setCommentText('');
-                setComments([]);
+        <View style={{
+          flex: 1,
+          backgroundColor: 'rgba(0,0,0,0.5)',
+        }}>
+          <View style={{
+            flex: 1,
+            marginTop: 50,
+            backgroundColor: Colors.surface,
+            borderTopLeftRadius: 20,
+            borderTopRightRadius: 20,
+          }}>
+            <View style={{
+              flexDirection: 'row',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              padding: 20,
+              borderBottomWidth: 1,
+              borderBottomColor: Colors.border,
+            }}>
+              <Text style={{
+                fontSize: 18,
+                fontWeight: 'bold',
+                color: Colors.text,
               }}>
-                <Ionicons name="close" size={28} color={Colors.text} />
+                Comments
+              </Text>
+              <TouchableOpacity
+                onPress={() => setCommentsModalVisible(false)}
+                style={{ padding: 5 }}
+              >
+                <Ionicons name="close" size={24} color={Colors.text} />
               </TouchableOpacity>
             </View>
 
-            {loadingComments ? (
-              <View style={styles.loadingContainer}>
-                <ActivityIndicator size="large" color={Colors.primary} />
-              </View>
-            ) : (
-              <ScrollView style={styles.commentsContainer}>
-                {comments.length === 0 ? (
-                  <View style={styles.noCommentsContainer}>
-                    <Text style={styles.noCommentsText}>No comments yet</Text>
-                    <Text style={styles.noCommentsSubtext}>Be the first to comment!</Text>
-                  </View>
-                ) : (
-                  comments.map((comment) => (
-                    <View key={comment.id} style={styles.commentItem}>
-                      <View style={styles.commentAvatar}>
-                        <Text style={styles.commentAvatarText}>
-                          {comment.user_name.charAt(0).toUpperCase()}
-                        </Text>
-                      </View>
-                      <View style={styles.commentContent}>
-                        <Text style={styles.commentUserName}>{comment.user_name}</Text>
-                        <Text style={styles.commentText}>{comment.comment_text}</Text>
-                        <Text style={styles.commentTime}>
-                          {formatTimeAgo(comment.created_at)}
-                        </Text>
-                      </View>
-                    </View>
-                  ))
+            {selectedPostForComments && (
+              <View style={{
+                padding: 20,
+                borderBottomWidth: 1,
+                borderBottomColor: Colors.border,
+              }}>
+                <View style={{
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  marginBottom: 10,
+                }}>
+                  <Image
+                    source={profilePics[selectedPostForComments.profilePicIndex || 0]}
+                    style={{
+                      width: 30,
+                      height: 30,
+                      borderRadius: 15,
+                      marginRight: 10,
+                      borderWidth: 1,
+                      borderColor: Colors.primary,
+                    }}
+                  />
+                  <Text style={{
+                    fontSize: 14,
+                    fontWeight: 'bold',
+                    color: Colors.text,
+                  }}>
+                    {selectedPostForComments.username}
+                  </Text>
+                </View>
+                {selectedPostForComments.content && (
+                  <Text style={{
+                    fontSize: 14,
+                    color: Colors.text,
+                    lineHeight: 20,
+                  }}>
+                    {selectedPostForComments.content}
+                  </Text>
                 )}
-              </ScrollView>
+              </View>
             )}
 
-            <View style={styles.commentInputContainer}>
+            <FlatList
+              data={comments}
+              keyExtractor={(item) => item.id}
+              renderItem={({ item }) => (
+                <View style={{
+                  padding: 15,
+                  borderBottomWidth: 1,
+                  borderBottomColor: Colors.background,
+                }}>
+                  <View style={{
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    marginBottom: 5,
+                  }}>
+                    <Image
+                      source={profilePics[item.profilePicIndex || 0]}
+                      style={{
+                        width: 25,
+                        height: 25,
+                        borderRadius: 12.5,
+                        marginRight: 8,
+                        borderWidth: 1,
+                        borderColor: Colors.secondary,
+                      }}
+                    />
+                    <Text style={{
+                      fontSize: 12,
+                      fontWeight: 'bold',
+                      color: Colors.text,
+                    }}>
+                      {item.username}
+                    </Text>
+                    <Text style={{
+                      fontSize: 10,
+                      color: Colors.textSecondary,
+                      marginLeft: 10,
+                    }}>
+                      {formatRelativeTime(item.created_at)}
+                    </Text>
+                  </View>
+                  <Text style={{
+                    fontSize: 14,
+                    color: Colors.text,
+                    lineHeight: 18,
+                  }}>
+                    {item.content}
+                  </Text>
+                </View>
+              )}
+              ListEmptyComponent={
+                <View style={{
+                  padding: 20,
+                  alignItems: 'center',
+                }}>
+                  <Text style={{
+                    color: Colors.textSecondary,
+                    fontSize: 14,
+                  }}>
+                    No comments yet. Be the first to comment!
+                  </Text>
+                </View>
+              }
+              contentContainerStyle={{ flexGrow: 1 }}
+            />
+
+            <View style={{
+              flexDirection: 'row',
+              padding: 15,
+              borderTopWidth: 1,
+              borderTopColor: Colors.border,
+              backgroundColor: Colors.surface,
+            }}>
               <TextInput
-                style={styles.commentInput}
+                style={{
+                  flex: 1,
+                  borderWidth: 1,
+                  borderColor: Colors.border,
+                  borderRadius: 20,
+                  paddingHorizontal: 15,
+                  paddingVertical: 10,
+                  fontSize: 14,
+                  color: Colors.text,
+                  marginRight: 10,
+                  maxHeight: 80,
+                }}
                 placeholder="Write a comment..."
                 placeholderTextColor={Colors.textSecondary}
-                value={commentText}
-                onChangeText={setCommentText}
+                value={newComment}
+                onChangeText={setNewComment}
                 multiline
               />
               <TouchableOpacity
-                style={[styles.sendButton, (!commentText.trim() || postingComment) && styles.sendButtonDisabled]}
-                onPress={postComment}
-                disabled={!commentText.trim() || postingComment}
+                style={{
+                  backgroundColor: Colors.primary,
+                  borderRadius: 20,
+                  paddingHorizontal: 20,
+                  paddingVertical: 10,
+                  justifyContent: 'center',
+                }}
+                onPress={addComment}
               >
-                {postingComment ? (
-                  <ActivityIndicator size="small" color={Colors.white} />
-                ) : (
-                  <Ionicons name="send" size={20} color={Colors.white} />
-                )}
+                <Ionicons name="send" size={16} color={Colors.white} />
               </TouchableOpacity>
             </View>
           </View>
-        </KeyboardAvoidingView>
+        </View>
       </Modal>
-    </SafeAreaView>
+    </View>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: Colors.background,
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    padding: 16,
-    backgroundColor: Colors.white,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
-  },
-  headerTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: Colors.text,
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  loadingText: {
-    marginTop: 10,
-    color: Colors.textSecondary,
-    fontSize: 16,
-  },
-  feedContainer: {
-    padding: 16,
-  },
-  postCard: {
-    backgroundColor: Colors.white,
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 16,
-    shadowColor: Colors.shadow,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  postHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  avatarContainer: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: Colors.primary,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  avatarText: {
-    color: Colors.white,
-    fontSize: 18,
-    fontWeight: 'bold',
-  },
-  postHeaderInfo: {
-    marginLeft: 12,
-    flex: 1,
-  },
-  userName: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: Colors.text,
-  },
-  postTime: {
-    fontSize: 12,
-    color: Colors.textSecondary,
-    marginTop: 2,
-  },
-  postContent: {
-    fontSize: 15,
-    color: Colors.text,
-    lineHeight: 22,
-    marginBottom: 12,
-  },
-  postImage: {
-    width: '100%',
-    height: 250,
-    borderRadius: 8,
-    marginBottom: 12,
-  },
-  postVideo: {
-    width: '100%',
-    height: 250,
-    borderRadius: 8,
-    marginBottom: 12,
-    backgroundColor: Colors.black,
-  },
-  postFooter: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingTop: 12,
-    borderTopWidth: 1,
-    borderTopColor: Colors.border,
-  },
-  commentButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  commentButtonText: {
-    marginLeft: 6,
-    color: Colors.primary,
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  emptyContainer: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 60,
-  },
-  emptyIcon: {
-    fontSize: 60,
-    marginBottom: 16,
-  },
-  emptyText: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: Colors.text,
-    marginBottom: 8,
-  },
-  emptySubtext: {
-    fontSize: 14,
-    color: Colors.textSecondary,
-  },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'flex-end',
-  },
-  createPostModal: {
-    backgroundColor: Colors.white,
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    maxHeight: '90%',
-  },
-  modalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
-  },
-  modalTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: Colors.text,
-  },
-  modalContent: {
-    padding: 20,
-  },
-  postInput: {
-    fontSize: 16,
-    color: Colors.text,
-    minHeight: 100,
-    textAlignVertical: 'top',
-    marginBottom: 16,
-  },
-  selectedMediaContainer: {
-    position: 'relative',
-    marginBottom: 16,
-  },
-  selectedMediaPreview: {
-    width: '100%',
-    height: 200,
-    borderRadius: 8,
-  },
-  videoPreviewContainer: {
-    width: '100%',
-    height: 200,
-    borderRadius: 8,
-    backgroundColor: Colors.backgroundLight,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  videoName: {
-    marginTop: 8,
-    fontSize: 14,
-    color: Colors.text,
-  },
-  removeMediaButton: {
-    position: 'absolute',
-    top: 8,
-    right: 8,
-  },
-  addMediaButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 16,
-    backgroundColor: Colors.backgroundLight,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    borderStyle: 'dashed',
-  },
-  addMediaText: {
-    marginLeft: 8,
-    fontSize: 16,
-    color: Colors.primary,
-    fontWeight: '600',
-  },
-  postButton: {
-    backgroundColor: Colors.primary,
-    margin: 20,
-    padding: 16,
-    borderRadius: 12,
-    alignItems: 'center',
-  },
-  postButtonDisabled: {
-    opacity: 0.5,
-  },
-  postButtonText: {
-    color: Colors.white,
-    fontSize: 16,
-    fontWeight: 'bold',
-  },
-  commentsModal: {
-    backgroundColor: Colors.white,
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    height: '80%',
-  },
-  commentsContainer: {
-    flex: 1,
-    padding: 20,
-  },
-  noCommentsContainer: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 40,
-  },
-  noCommentsText: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: Colors.text,
-    marginBottom: 4,
-  },
-  noCommentsSubtext: {
-    fontSize: 14,
-    color: Colors.textSecondary,
-  },
-  commentItem: {
-    flexDirection: 'row',
-    marginBottom: 16,
-  },
-  commentAvatar: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: Colors.accent,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  commentAvatarText: {
-    color: Colors.white,
-    fontSize: 16,
-    fontWeight: 'bold',
-  },
-  commentContent: {
-    flex: 1,
-    marginLeft: 12,
-    backgroundColor: Colors.backgroundLight,
-    padding: 12,
-    borderRadius: 12,
-  },
-  commentUserName: {
-    fontSize: 14,
-    fontWeight: 'bold',
-    color: Colors.text,
-    marginBottom: 4,
-  },
-  commentText: {
-    fontSize: 14,
-    color: Colors.text,
-    lineHeight: 20,
-    marginBottom: 4,
-  },
-  commentTime: {
-    fontSize: 12,
-    color: Colors.textSecondary,
-  },
-  commentInputContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 16,
-    borderTopWidth: 1,
-    borderTopColor: Colors.border,
-    backgroundColor: Colors.white,
-  },
-  commentInput: {
-    flex: 1,
-    backgroundColor: Colors.backgroundLight,
-    borderRadius: 20,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    fontSize: 14,
-    color: Colors.text,
-    maxHeight: 100,
-  },
-  sendButton: {
-    marginLeft: 8,
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: Colors.primary,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  sendButtonDisabled: {
-    opacity: 0.5,
-  },
-});
