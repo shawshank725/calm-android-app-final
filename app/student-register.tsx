@@ -3,8 +3,8 @@ import { useRouter } from 'expo-router';
 import { useCallback, useState } from 'react';
 import { Alert, KeyboardAvoidingView, Modal, Platform, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
-import { Colors } from '../constants/Colors';
-import { supabase } from '../lib/supabase';
+import { Colors } from '@/constants/Colors';
+import { supabase } from '@/lib/supabase';
 
 const COURSES = [
   'Faculty of Commerce and Management',

@@ -3,9 +3,9 @@ import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { ActivityIndicator, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
-import { Colors } from '../constants/Colors';
-import '../constants/GlobalStyles'; // Import global styles to make Tinos font available
-import QueryProvider from '../providers/QueryProvider';
+import { Colors } from '@/constants/Colors';
+import '@/constants/GlobalStyles'; // Import global styles to make Tinos font available
+import QueryProvider from '@/providers/QueryProvider';
 
 export default function RootLayout() {
   const [loaded] = useFonts({

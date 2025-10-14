@@ -23,8 +23,8 @@ import {
   TouchableOpacity,
   View
 } from 'react-native';
-import { Colors } from '../../constants/Colors';
-import { supabase } from '../../lib/supabase';
+import { Colors } from '@/constants/Colors';
+import { supabase } from '@/lib/supabase';
 
 // Mood tracking constants
 const MOOD_EMOJIS = [

@@ -3,23 +3,23 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useState } from 'react';
 import { Alert, Animated, Dimensions, Easing, Image, KeyboardAvoidingView, Modal, Platform, ScrollView, Text, TouchableOpacity, View } from 'react-native';
-import { Colors } from '../../constants/Colors';
-import { supabase } from '../../lib/supabase';
+import { Colors } from '@/constants/Colors';
+import { supabase } from '@/lib/supabase';
 
 const profilePics = [
-  require('../../assets/images/profile/pic1.png'),
-  require('../../assets/images/profile/pic2.png'),
-  require('../../assets/images/profile/pic3.png'),
-  require('../../assets/images/profile/pic4.png'),
-  require('../../assets/images/profile/pic5.png'),
-  require('../../assets/images/profile/pic6.png'),
-  require('../../assets/images/profile/pic7.png'),
-  require('../../assets/images/profile/pic8.png'),
-  require('../../assets/images/profile/pic9.png'),
-  require('../../assets/images/profile/pic10.png'),
-  require('../../assets/images/profile/pic11.png'),
-  require('../../assets/images/profile/pic12.png'),
-  require('../../assets/images/profile/pic13.png'),
+  require('@/assets/images/profile/pic1.png'),
+  require('@/assets/images/profile/pic2.png'),
+  require('@/assets/images/profile/pic3.png'),
+  require('@/assets/images/profile/pic4.png'),
+  require('@/assets/images/profile/pic5.png'),
+  require('@/assets/images/profile/pic6.png'),
+  require('@/assets/images/profile/pic7.png'),
+  require('@/assets/images/profile/pic8.png'),
+  require('@/assets/images/profile/pic9.png'),
+  require('@/assets/images/profile/pic10.png'),
+  require('@/assets/images/profile/pic11.png'),
+  require('@/assets/images/profile/pic12.png'),
+  require('@/assets/images/profile/pic13.png'),
 ];
 
 const alerts = [
@@ -1122,7 +1122,7 @@ export default function StudentHome() {
             style={{ width: 40, height: 40, borderRadius: 22, backgroundColor: Colors.white, justifyContent: 'center', alignItems: 'center', elevation: 8, shadowColor: Colors.shadow, shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.22, shadowRadius: 5, borderWidth: 2, borderColor: Colors.primary }}
             onPress={() => router.push('./ai')}
           >
-            <Image source={require('../../assets/images/chat bot.png')} style={{ width: 30, height: 30, resizeMode: 'contain' }} />
+            <Image source={require('@/assets/images/chat bot.png')} style={{ width: 30, height: 30, resizeMode: 'contain' }} />
           </TouchableOpacity>
         </View>
       )}
@@ -1206,7 +1206,7 @@ export default function StudentHome() {
                     setShowToolkitPopup(true);
                   }}
                 >
-                  <Image source={require('../../assets/images/grounding.png')} style={{ width: 50, height: 50, marginBottom: 6, resizeMode: 'contain' }} />
+                  <Image source={require('@/assets/images/grounding.png')} style={{ width: 50, height: 50, marginBottom: 6, resizeMode: 'contain' }} />
                   <Text style={{ color: Colors.primary, fontSize: 12, fontWeight: 'bold', textAlign: 'center' }}>Grounding Exercises</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
@@ -1220,7 +1220,7 @@ export default function StudentHome() {
                     setShowToolkitPopup(true);
                   }}
                 >
-                  <Image source={require('../../assets/images/breathing.png')} style={{ width: 50, height: 50, marginBottom: 6, resizeMode: 'contain' }} />
+                  <Image source={require('@/assets/images/breathing.png')} style={{ width: 50, height: 50, marginBottom: 6, resizeMode: 'contain' }} />
                   <Text style={{ color: Colors.primary, fontSize: 12, fontWeight: 'bold', textAlign: 'center' }}>Breathing Exercises</Text>
                 </TouchableOpacity>
               </View>
@@ -1236,7 +1236,7 @@ export default function StudentHome() {
                     setShowToolkitPopup(true);
                   }}
                 >
-                  <Image source={require('../../assets/images/mandala.png')} style={{ width: 50, height: 50, marginBottom: 6, resizeMode: 'contain' }} />
+                  <Image source={require('@/assets/images/mandala.png')} style={{ width: 50, height: 50, marginBottom: 6, resizeMode: 'contain' }} />
                   <Text style={{ color: Colors.primary, fontSize: 12, fontWeight: 'bold', textAlign: 'center' }}>Color Mandala </Text>
                 </TouchableOpacity>
                 <TouchableOpacity
@@ -1250,7 +1250,7 @@ export default function StudentHome() {
                     setShowToolkitPopup(true);
                   }}
                 >
-                  <Image source={require('../../assets/images/movement.png')} style={{ width: 50, height: 50, marginBottom: 6, resizeMode: 'contain' }} />
+                  <Image source={require('@/assets/images/movement.png')} style={{ width: 50, height: 50, marginBottom: 6, resizeMode: 'contain' }} />
                   <Text style={{ color: Colors.primary, fontSize: 12, fontWeight: 'bold', textAlign: 'center' }}>Movement Exercise</Text>
                 </TouchableOpacity>
               </View>
@@ -1266,7 +1266,7 @@ export default function StudentHome() {
                     setShowToolkitPopup(true);
                   }}
                 >
-                  <Image source={require('../../assets/images/focus.png')} style={{ width: 50, height: 50, marginBottom: 6, resizeMode: 'contain' }} />
+                  <Image source={require('@/assets/images/focus.png')} style={{ width: 50, height: 50, marginBottom: 6, resizeMode: 'contain' }} />
                   <Text style={{ color: Colors.primary, fontSize: 12, fontWeight: 'bold', textAlign: 'center' }}>Focus & Concentration</Text>
                 </TouchableOpacity>
               </View>
@@ -1447,31 +1447,31 @@ export default function StudentHome() {
               {/* 2x3 Matrix Layout */}
               <View style={{ flexDirection: 'row', justifyContent: 'center', width: '100%', marginTop: 10, paddingHorizontal: 10 }}>
                 <TouchableOpacity style={{ width: '45%', height: 120, borderRadius: 25, justifyContent: 'center', alignItems: 'center', elevation: 4, shadowColor: Colors.shadow, shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.18, shadowRadius: 5, marginHorizontal: 10, marginVertical: 8, backgroundColor: Colors.white, borderWidth: 2, borderColor: Colors.primary }} onPress={() => setShowToolkitPage(true)}>
-                  <Image source={require('../../assets/images/self help tool kit.png')} style={{ width: 60, height: 60, marginBottom: 8 }} />
+                  <Image source={require('@/assets/images/self help tool kit.png')} style={{ width: 60, height: 60, marginBottom: 8 }} />
                   <Text style={{ color: Colors.primary, fontSize: 12, fontWeight: 'bold', textAlign: 'center' }}>Self Help Toolkit</Text>
                 </TouchableOpacity>
                 <TouchableOpacity style={{ width: '45%', height: 120, borderRadius: 25, justifyContent: 'center', alignItems: 'center', elevation: 4, shadowColor: Colors.shadow, shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.18, shadowRadius: 5, marginHorizontal: 10, marginVertical: 8, backgroundColor: Colors.white, borderWidth: 2, borderColor: Colors.primary }} onPress={() => router.push('./student-calm')}>
-                  <Image source={require('../../assets/images/calmcampanion.png')} style={{ width: 60, height: 60, marginBottom: 8 }} />
+                  <Image source={require('@/assets/images/calmcampanion.png')} style={{ width: 60, height: 60, marginBottom: 8 }} />
                   <Text style={{ color: Colors.primary, fontSize: 12, fontWeight: 'bold', textAlign: 'center' }}>C.A.L.M Spaces</Text>
                 </TouchableOpacity>
               </View>
               <View style={{ flexDirection: 'row', justifyContent: 'center', width: '100%', marginTop: 10, paddingHorizontal: 10 }}>
                 <TouchableOpacity style={{ width: '45%', height: 120, borderRadius: 25, justifyContent: 'center', alignItems: 'center', elevation: 4, shadowColor: Colors.shadow, shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.18, shadowRadius: 5, marginHorizontal: 10, marginVertical: 8, backgroundColor: Colors.white, borderWidth: 2, borderColor: Colors.primary }} onPress={() => router.push('./buddy-connect')}>
-                  <Image source={require('../../assets/images/community.png')} style={{ width: 60, height: 60, marginBottom: 8 }} />
+                  <Image source={require('@/assets/images/community.png')} style={{ width: 60, height: 60, marginBottom: 8 }} />
                   <Text style={{ color: Colors.primary, fontSize: 12, fontWeight: 'bold', textAlign: 'center' }}>Community</Text>
                 </TouchableOpacity>
                 <TouchableOpacity style={{ width: '45%', height: 120, borderRadius: 25, justifyContent: 'center', alignItems: 'center', elevation: 4, shadowColor: Colors.shadow, shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.18, shadowRadius: 5, marginHorizontal: 10, marginVertical: 8, backgroundColor: Colors.white, borderWidth: 2, borderColor: Colors.primary }} onPress={() => router.push('./journal')}>
-                  <Image source={require('../../assets/images/journal.png')} style={{ width: 60, height: 60, marginBottom: 8 }} />
+                  <Image source={require('@/assets/images/journal.png')} style={{ width: 60, height: 60, marginBottom: 8 }} />
                   <Text style={{ color: Colors.primary, fontSize: 12, fontWeight: 'bold', textAlign: 'center' }}>Journal</Text>
                 </TouchableOpacity>
               </View>
               <View style={{ flexDirection: 'row', justifyContent: 'center', width: '100%', marginTop: 10, paddingHorizontal: 10 }}>
                 <TouchableOpacity style={{ width: '45%', height: 120, borderRadius: 25, justifyContent: 'center', alignItems: 'center', elevation: 4, shadowColor: Colors.shadow, shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.18, shadowRadius: 5, marginHorizontal: 10, marginVertical: 8, backgroundColor: Colors.white, borderWidth: 2, borderColor: Colors.primary }} onPress={() => router.push('./support')}>
-                  <Image source={require('../../assets/images/supportself.png')} style={{ width: 60, height: 60, marginBottom: 8 }} />
+                  <Image source={require('@/assets/images/supportself.png')} style={{ width: 60, height: 60, marginBottom: 8 }} />
                   <Text style={{ color: Colors.primary, fontSize: 12, fontWeight: 'bold', textAlign: 'center' }}>Support Self</Text>
                 </TouchableOpacity>
                 <TouchableOpacity style={{ width: '45%', height: 120, borderRadius: 25, justifyContent: 'center', alignItems: 'center', elevation: 4, shadowColor: Colors.shadow, shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.18, shadowRadius: 5, marginHorizontal: 10, marginVertical: 8, backgroundColor: Colors.white, borderWidth: 2, borderColor: Colors.primary }} onPress={() => router.push(`./message?registration=${studentRegNo}`)}>
-                  <Image source={require('../../assets/images/message.png')} style={{ width: 60, height: 60, marginBottom: 8 }} />
+                  <Image source={require('@/assets/images/message.png')} style={{ width: 60, height: 60, marginBottom: 8 }} />
                   <Text style={{ color: Colors.primary, fontSize: 12, fontWeight: 'bold', textAlign: 'center' }}>Messages</Text>
                 </TouchableOpacity>
               </View>
@@ -1550,13 +1550,13 @@ export default function StudentHome() {
           >
             <View style={{ alignItems: 'center', justifyContent: 'center', width: 48, height: 40, borderRadius: 16, backgroundColor: 'transparent', borderWidth: 0, borderColor: 'transparent' }}>
               {tab.key === 'home' ? (
-                <Image source={require('../../assets/images/home.png')} style={{ width: 40, height: 40 }} />
+                <Image source={require('@/assets/images/home.png')} style={{ width: 40, height: 40 }} />
               ) : tab.key === 'mood' ? (
-                <Image source={require('../../assets/images/mood calender.png')} style={{ width: 40, height: 40 }} />
+                <Image source={require('@/assets/images/mood calender.png')} style={{ width: 40, height: 40 }} />
               ) : tab.key === 'sos' ? (
-                <Image source={require('../../assets/images/sos.png')} style={{ width: 35, height: 35 }} />
+                <Image source={require('@/assets/images/sos.png')} style={{ width: 35, height: 35 }} />
               ) : tab.key === 'setting' ? (
-                <Image source={require('../../assets/images/setting.png')} style={{ width: 35, height: 35 }} />
+                <Image source={require('@/assets/images/setting.png')} style={{ width: 35, height: 35 }} />
               ) : (
                 <Text style={{ fontSize: 20, color: activeTab === tab.key ? '#333' : '#666', textShadowColor: 'transparent', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 2 }}>{tab.icon}</Text>
               )}

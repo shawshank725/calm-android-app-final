@@ -4,23 +4,23 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import { Alert, Animated, Image, Modal, Pressable, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { Colors } from '../../constants/Colors';
-import { supabase } from '../../lib/supabase';
+import { Colors } from '@/constants/Colors';
+import { supabase } from '@/lib/supabase';
 
 const profilePics = [
-  require('../../assets/images/profile/pic1.png'),
-  require('../../assets/images/profile/pic2.png'),
-  require('../../assets/images/profile/pic3.png'),
-  require('../../assets/images/profile/pic4.png'),
-  require('../../assets/images/profile/pic5.png'),
-  require('../../assets/images/profile/pic6.png'),
-  require('../../assets/images/profile/pic7.png'),
-  require('../../assets/images/profile/pic8.png'),
-  require('../../assets/images/profile/pic9.png'),
-  require('../../assets/images/profile/pic10.png'),
-  require('../../assets/images/profile/pic11.png'),
-  require('../../assets/images/profile/pic12.png'),
-  require('../../assets/images/profile/pic13.png'),
+  require('@/assets/images/profile/pic1.png'),
+  require('@/assets/images/profile/pic2.png'),
+  require('@/assets/images/profile/pic3.png'),
+  require('@/assets/images/profile/pic4.png'),
+  require('@/assets/images/profile/pic5.png'),
+  require('@/assets/images/profile/pic6.png'),
+  require('@/assets/images/profile/pic7.png'),
+  require('@/assets/images/profile/pic8.png'),
+  require('@/assets/images/profile/pic9.png'),
+  require('@/assets/images/profile/pic10.png'),
+  require('@/assets/images/profile/pic11.png'),
+  require('@/assets/images/profile/pic12.png'),
+  require('@/assets/images/profile/pic13.png'),
 ];
 
 // Helper: Try multiple query variants to find a student in user_requests
