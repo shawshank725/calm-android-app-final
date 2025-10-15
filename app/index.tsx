@@ -16,7 +16,6 @@ export default function FrontPage() {
   const [isLoading, setIsLoading] = useState(false);
   const { session } = useAuth();
 
-  console.log(session);
   useEffect(() => {
     const redirectUser = async () => {
       if (session && session.user?.id) {

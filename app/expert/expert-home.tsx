@@ -644,7 +644,7 @@ export default function ExpertHome() {
         : 'Unknown size';
 
       Alert.alert(
-        '✅ Upload Successful',
+        'Upload Successful',
         `${uploadForm.title}\n\nFile: ${selectedFile.name}\nSize: ${fileSize}\nCategory: ${category}\n\nResource is now available in the library!`,
         [
           {
