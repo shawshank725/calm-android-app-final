@@ -1,4 +1,4 @@
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import {
     Alert,
@@ -12,45 +12,21 @@ import {
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/providers/AuthProvider';
 import { useProfile } from '@/api/Profile';
+import { ChatMessage, GroupedConversation } from '@/types/Message';
 
 interface Student {
-    id: string;
+    id: string; // uuid
     name: string;
     registration_number: string;
     email: string;
     course: string;
-    type?: string; // Add user_type to distinguish between Student and Peer
-}
-
-interface ChatMessage {
-    id: string;
-    sender_id: string;
-    receiver_id: string;
-    sender_name: string;
-    sender_type: 'EXPERT' | 'STUDENT' | 'PEER' | 'ADMIN';
-    message: string;
-    created_at: string;
-    is_read?: boolean;
-}
-
-interface GroupedConversation {
-    sender_id: string;
-    sender_name: string;
-    sender_type: string;
-    latest_message: string;
-    latest_timestamp: string;
-    message_count: number;
-    is_read?: boolean;
+    type?: string;
+    username?: string;
 }
 
 export default function ConsultationPage() {
     const router = useRouter();
-    const params = useLocalSearchParams<{
-        studentName?: string;
-        studentReg?: string;
-        studentEmail?: string;
-        expertReg?: string;
-    }>();
+
     const { session } = useAuth();
     const { data: profile } = useProfile(session?.user.id);
 
@@ -60,32 +36,32 @@ export default function ConsultationPage() {
     const [messages, setMessages] = useState<ChatMessage[]>([]);
     const [groupedConversations, setGroupedConversations] = useState<GroupedConversation[]>([]);
     const [activeTab, setActiveTab] = useState<'students' | 'messages'>('messages'); // Default to messages
-    const expertInfo = {
-        name: profile?.name,
-        registration: profile?.registration_number.toString()
-    };
+    // const expertInfo = {
+    //     name: profile?.name,
+    //     registration: profile?.registration_number.toString()
+    // };
 
     // Load messages when expert info is available
     useEffect(() => {
-        if (expertInfo.registration) {
+        if (profile) {
             loadMessages();
         }
-    }, [expertInfo.registration]);
+    }, [profile]);
 
 
     // Set up real-time subscription for new messages
     useEffect(() => {
-        if (!expertInfo.registration) return;
+        if (!profile) return;
 
         const channel = supabase
-            .channel(`expert_messages_${expertInfo.registration}`)
+            .channel(`expert_messages_${profile}`)
             .on(
                 'postgres_changes',
                 {
                     event: 'INSERT',
                     schema: 'public',
                     table: 'messages',
-                    filter: `receiver_id=eq.${expertInfo.registration}`,
+                    filter: `receiver_id=eq.${profile.id}`,
                 },
                 (payload: any) => {
                     console.log('New message received:', payload);
@@ -108,7 +84,7 @@ export default function ConsultationPage() {
         return () => {
             supabase.removeChannel(channel);
         };
-    }, [expertInfo.registration]);
+    }, [profile]);
 
 
     const groupMessagesBySender = (messages: ChatMessage[]): GroupedConversation[] => {
@@ -148,13 +124,13 @@ export default function ConsultationPage() {
 
     const loadMessages = async () => {
         try {
-            if (!expertInfo.registration) return;
+            if (!profile) return;
 
             // Load messages where expert is the receiver (messages sent to expert)
             const { data: messagesData, error } = await supabase
                 .from('messages')
                 .select('*')
-                .eq('receiver_id', expertInfo.registration)
+                .eq('receiver_id', profile.id)
                 .order('created_at', { ascending: false }) // Most recent first
                 .limit(1000); // Limit to last 1000 messages
 
@@ -200,7 +176,7 @@ export default function ConsultationPage() {
             if (searchResults && searchResults.length > 0) {
                 // Convert search results to Student format
                 const foundStudents: Student[] = searchResults.map(result => ({
-                    id: result.registration_number,
+                    id: result.id,
                     name: result.name,
                     registration_number: result.registration_number,
                     email: result.email || '',
@@ -239,18 +215,9 @@ export default function ConsultationPage() {
     };
 
     const selectStudent = (student: Student) => {
-        // Navigate to dedicated chat page with student information
         router.push({
             pathname: './expert-chat',
-            params: {
-                studentId: student.id,
-                studentName: student.name,
-                studentReg: student.registration_number,
-                studentEmail: student.email,
-                studentCourse: student.course,
-                expertReg: expertInfo.registration,
-                expertName: expertInfo.name
-            }
+            params: { studentId: student.id }
         });
     };
 
@@ -319,10 +286,11 @@ export default function ConsultationPage() {
                 router.push({
                     pathname: './expert-chat',
                     params: {
-                        studentReg: item.sender_id,
+                        studentId: item.sender_id,
                         studentName: item.sender_name,
-                        expertReg: expertInfo.registration,
-                        expertName: expertInfo.name
+                        expertReg: profile?.registration_number,
+                        expertName: profile?.name, 
+                        expertId: profile?.id
                     }
                 });
             }}

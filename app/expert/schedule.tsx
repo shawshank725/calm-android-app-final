@@ -1,5 +1,4 @@
 import { Ionicons } from '@expo/vector-icons';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import {
@@ -15,8 +14,8 @@ import {
 } from 'react-native';
 import { Colors } from '../../constants/Colors';
 import { supabase } from '../../lib/supabase';
-import { useAuth } from '@/providers/AuthProvider';
 import { useProfile } from '@/api/Profile';
+import { useAuth } from '@/providers/AuthProvider';
 
 interface TimeSlot {
   id?: string;
@@ -58,12 +57,9 @@ const formatDateToLocalString = (date: Date): string => {
 
 export default function ExpertSchedulePage() {
   const router = useRouter();
-  const { session } = useAuth();
-  const { data: profile } = useProfile(session?.user.id);
-    
-  const expertName = profile?.name;
-  const expertRegNo = profile?.registration_number;
-  
+  const {session} = useAuth();
+  const {data: profile} = useProfile(session?.user.id);
+
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [modalVisible, setModalVisible] = useState(false);
@@ -81,10 +77,10 @@ export default function ExpertSchedulePage() {
   });
 
   useEffect(() => {
-    if (expertRegNo) {
+    if (profile && currentMonth) {
       loadAllSchedules();
     }
-  }, [expertRegNo, currentMonth]);
+  }, [profile, currentMonth]);
 
 
   const loadAllSchedules = async () => {
@@ -95,7 +91,7 @@ export default function ExpertSchedulePage() {
       const { data, error } = await supabase
         .from('expert_schedule')
         .select('*')
-        .eq('expert_registration', expertRegNo)
+        .eq('expert_id', profile?.id)
         .gte('date', formatDateToLocalString(startOfMonth))
         .lte('date', formatDateToLocalString(endOfMonth));
 
@@ -124,7 +120,7 @@ export default function ExpertSchedulePage() {
       const { data, error } = await supabase
         .from('expert_schedule')
         .select('*')
-        .eq('expert_registration', expertRegNo)
+        .eq('expert_id', profile?.id)
         .eq('date', dateString)
         .order('start_time', { ascending: true });
 
@@ -155,8 +151,9 @@ export default function ExpertSchedulePage() {
       setLoading(true);
       try {
         const slotsToAdd = DEFAULT_SLOTS.map(slot => ({
-          expert_registration: expertRegNo,
-          expert_name: expertName,
+          expert_registration_number: profile?.registration_number,
+          expert_name: profile?.name,
+          expert_id: profile?.id,
           date: dateString,
           start_time: slot.start,
           end_time: slot.end,
@@ -209,8 +206,9 @@ export default function ExpertSchedulePage() {
             try {
               const dateString = formatDateToLocalString(selectedDate);
               const slotToAdd = {
-                expert_registration: expertRegNo,
-                expert_name: expertName,
+                expert_registration_number: profile?.registration_number,
+                expert_name: profile?.name,
+                expert_id: profile?.id,
                 date: dateString,
                 start_time: startTime,
                 end_time: endTime,
@@ -264,8 +262,9 @@ export default function ExpertSchedulePage() {
             try {
               const dateString = formatDateToLocalString(selectedDate);
               const slotsToAdd = DEFAULT_SLOTS.map(slot => ({
-                expert_registration: expertRegNo,
-                expert_name: expertName,
+                expert_registration_number: profile?.registration_number,
+                expert_name: profile?.name,
+                expert_id: profile?.id,
                 date: dateString,
                 start_time: slot.start,
                 end_time: slot.end,
@@ -353,7 +352,7 @@ export default function ExpertSchedulePage() {
               const { error } = await supabase
                 .from('expert_schedule')
                 .delete()
-                .eq('expert_registration', expertRegNo)
+                .eq('expert_id', profile?.id)
                 .eq('date', dateString);
 
               if (error) {
@@ -702,7 +701,7 @@ export default function ExpertSchedulePage() {
         </TouchableOpacity>
         <View style={styles.headerContent}>
           <Text style={styles.headerTitle}>My Schedule</Text>
-          <Text style={styles.headerSubtitle}>{expertName}</Text>
+          <Text style={styles.headerSubtitle}>{profile?.name}</Text>
         </View>
       </View>
 

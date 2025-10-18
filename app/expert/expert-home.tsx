@@ -5,8 +5,7 @@ import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system';
 import { useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
-import {
-  ActivityIndicator, Alert, Animated, Dimensions, Easing, Image, KeyboardAvoidingView, Modal, Platform,
+import {  ActivityIndicator, Alert, Animated, Dimensions, Easing, Image, KeyboardAvoidingView, Modal, Platform,
   SafeAreaView, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View
 } from 'react-native';
 import { Colors } from '@/constants/Colors';
@@ -906,7 +905,7 @@ export default function ExpertHome() {
               </TouchableOpacity>
               <TouchableOpacity
                 style={styles.matrixButton}
-                onPress={() => router.push(`./consultation?expertReg=${encodeURIComponent(expertRegNo)}&studentName=General&studentReg=&studentEmail=`)}
+                onPress={() => router.push(`./consultation`)}
               >
                 <Image source={require('../../assets/images/message.png')} style={{ width: 48, height: 48, marginBottom: 8 }} />
                 <Text style={styles.matrixButtonText}>Consultations</Text>

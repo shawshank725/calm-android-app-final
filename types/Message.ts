@@ -1,19 +1,18 @@
-
 export interface ChatMessage {
     id: string;
-    sender_id: string;
-    receiver_id: string;
-    receiver_name: string;
+    sender_id: string; // uuid
+    receiver_id: string; // uuid
+    // receiver_name: string;
     sender_name: string;
     sender_type: 'EXPERT' | 'STUDENT' | 'PEER' | 'ADMIN';
-    receiver_type: 'EXPERT' | 'STUDENT' | 'PEER' | 'ADMIN';
+    // receiver_type: 'EXPERT' | 'STUDENT' | 'PEER' | 'ADMIN';
     message: string;
     created_at: string;
     is_read?: boolean;
 }
 
 export interface GroupedConversation {
-    sender_id: string;
+    sender_id: string; // uuid
     sender_name: string;
     sender_type: string;
     latest_message: string;
@@ -25,7 +24,7 @@ export interface GroupedConversation {
 
 export interface Conversation {
   id: string;
-  participantId: string;
+  participantId: string; // uuid
   participantName: string;
   participantType: 'student' | 'expert' | 'peer' | 'admin';
   lastMessage: string;
@@ -37,8 +36,8 @@ export interface Conversation {
 
 export interface ReceivedMessage {
   id: string;
-  sender_id: string;
-  receiver_id: string;
+  sender_id: string; // uuid
+  receiver_id: string; // uuid
   sender_name: string;
   sender_type: 'STUDENT' | 'EXPERT' | 'PEER' | 'ADMIN';
   message: string;

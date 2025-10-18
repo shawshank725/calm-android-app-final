@@ -1,109 +1,165 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
-import { Alert, FlatList, KeyboardAvoidingView, Platform, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import {    Alert,    FlatList,    KeyboardAvoidingView,    Platform,    StyleSheet,    Text,    TextInput,    TouchableOpacity,    View} from 'react-native';
 import { supabase } from '@/lib/supabase';
-import { ChatMessage } from '@/types/Message';
-import { useProfile } from '@/api/Profile';
 import { useAuth } from '@/providers/AuthProvider';
-import { useChatMessages, useInsertMessage } from '@/api/ExpertMessages';
-import { useQueryClient } from '@tanstack/react-query';
+import { useProfile } from '@/api/Profile';
+import { ChatMessage } from '@/types/Message';
 
 
 export default function ExpertChatPage() {
     const router = useRouter();
-    const params = useLocalSearchParams<{ studentId?: string; }>();
-
-    const queryClient = useQueryClient();
+    const params = useLocalSearchParams<{ studentId?: string;    }>();
 
     const { session } = useAuth();
     const { data: profile } = useProfile(session?.user.id);
+    const {data: studentProfile } = useProfile(params.studentId);
 
+    const [messages, setMessages] = useState<ChatMessage[]>([]);
     const [newMessage, setNewMessage] = useState('');
     const [loading, setLoading] = useState(false);
     const flatListRef = useRef<FlatList>(null);
 
-    const { data: studentProfile } = useProfile(params.studentId);
-
-    const expertId = session?.user?.id;
-    const studentId = params.studentId;
-
-    const { data: messages = [], isLoading } = useChatMessages(expertId, studentId);
-    const insertMessage = useInsertMessage();
 
     useEffect(() => {
-        if (!expertId || !studentId) return;
+        loadMessages();
+        const refreshInterval = setInterval(() => {
+            loadMessages();
+        }, 30000); // Refresh every 30 seconds
+        return () => clearInterval(refreshInterval);
+    }, []);
 
-        const channelName = `expert_chat_${expertId}_${studentId}`;
-        console.log(`📡 Subscribing to channel: ${channelName}`);
+    // Set up real-time subscription for chat messages
+    useEffect(() => {
+        if (!profile || !studentProfile) return;
 
         const channel = supabase
-            .channel(channelName)
+            .channel(`expert_chat_${profile.id}_${studentProfile.id}`)
             .on(
                 'postgres_changes',
                 {
                     event: 'INSERT',
                     schema: 'public',
                     table: 'messages',
-                    filter: `or(and(sender_id.eq.${expertId},receiver_id.eq.${studentId}),and(sender_id.eq.${studentId},receiver_id.eq.${expertId}))`,
+                    filter: `or(and(sender_id.eq.${profile.id},receiver_id.eq.${studentProfile?.id}),and(sender_id.eq.${studentProfile?.id},receiver_id.eq.${profile.id}))`,
                 },
                 (payload) => {
-                    const newMsg = payload.new as ChatMessage;
-                    console.log('📩 New real-time message:', newMsg);
+                    console.log('New message received:', payload);
+                    const newMessage = payload.new as ChatMessage;
 
-                    // ✅ Update React Query cache instead of using setMessages
-                    queryClient.setQueryData<ChatMessage[]>(
-                        ['chatMessages', expertId, studentId],
-                        (old = []) => {
-                            const exists = old.some(m => m.id === newMsg.id);
-                            if (exists) return old;
-                            return [...old, newMsg];
-                        }
-                    );
+                    // Prevent duplicate messages
+                    setMessages(prev => {
+                        const exists = prev.some(msg => msg.id === newMessage.id);
+                        if (exists) return prev;
+                        return [...prev, newMessage];
+                    });
 
-                    // ✅ Auto-scroll to bottom
+                    // Auto-scroll to bottom when new message arrives
                     setTimeout(() => {
                         flatListRef.current?.scrollToEnd({ animated: true });
                     }, 100);
                 }
             )
-            .subscribe((status) => {
-                console.log(`Realtime channel status for ${channelName}:`, status);
-            });
+            .subscribe();
 
         return () => {
-            console.log(`❌ Unsubscribing from ${channelName}`);
             supabase.removeChannel(channel);
         };
-    }, [expertId, studentId]);
+    }, [profile, studentProfile]);
 
 
-
-    const sendMessage = async () => {
-        if (!newMessage.trim()) return;
-
+    const loadMessages = async () => {
+        setLoading(true);
         try {
-            if (profile && expertId && studentProfile) {
-                const messagePayload = {
-                    sender_id: expertId,
-                    receiver_id: studentProfile.id,
-                    receiver_name: studentProfile?.name,
-                    sender_name: profile?.name,
-                    message: newMessage.trim(),
-                    sender_type: "EXPERT" as "STUDENT" | "EXPERT" | "PEER" | "ADMIN",
-                    receiver_type: studentProfile.type as "STUDENT" | "EXPERT" | "PEER" | "ADMIN",
-                    is_read: false,
-                };
-                console.log(messagePayload);
-                await insertMessage.mutateAsync(messagePayload);
+            const expertId = profile?.id;
+            const studentId = studentProfile?.id;
+
+            if (!profile || !studentProfile) {
+                setMessages([]);
+                return;
             }
 
-            setNewMessage("");
-            setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 100);
-        } catch (error: any) {
-            Alert.alert("Error", error.message);
+            // Fetch messages between expert and student from Supabase
+            const { data: messages, error } = await supabase
+                .from('messages')
+                .select('*')
+                .or(`and(sender_id.eq.${expertId},receiver_id.eq.${studentId}),and(sender_id.eq.${studentId},receiver_id.eq.${expertId})`)
+                .order('created_at', { ascending: true });
+
+            if (error) {
+                console.error('Error loading messages:', error);
+                setMessages([]);
+                return;
+            }
+
+            if (messages) {
+                setMessages(prev => {
+                    // Only update if messages have changed
+                    if (JSON.stringify(prev) !== JSON.stringify(messages)) {
+                        // Auto-scroll to bottom after loading new messages
+                        setTimeout(() => {
+                            flatListRef.current?.scrollToEnd({ animated: false });
+                        }, 100);
+                        return messages;
+                    }
+                    return prev;
+                });
+            } else {
+                setMessages([]);
+            }
+        } catch (error) {
+            console.error('Error loading messages:', error);
+            setMessages([]);
+        } finally {
+            setLoading(false);
         }
     };
 
+    const sendMessage = async () => {
+        if (newMessage.trim() === '') {
+            Alert.alert('Error', 'Please enter a message');
+            return;
+        }
+
+        if (!profile || !studentProfile) {
+            Alert.alert('Error', 'Missing expert or student information');
+            console.error('Missing params:', params);
+            return;
+        }
+
+
+        const messageData = {
+            sender_id: profile.id,
+            receiver_id: studentProfile?.id,
+            sender_name: profile.name || 'Expert',
+            sender_type: 'EXPERT' as const,
+            message: newMessage.trim(),
+            created_at: new Date(),
+        };
+
+        try {
+            const { data, error } = await supabase
+                .from('messages')
+                .insert([messageData])
+                .select()
+                .single();
+
+            // Add to local state for immediate UI update
+            if (data) {
+                setMessages(prev => [...prev, data]);
+                // Auto-scroll to bottom when expert sends message
+                setTimeout(() => {
+                    flatListRef.current?.scrollToEnd({ animated: true });
+                }, 100);
+            }
+
+            setNewMessage('');
+        } catch (error: any) {
+            console.error('Error sending message:', error);
+            const errorMessage = error?.message || error?.details || error?.error_description || 'Unknown error occurred';
+            Alert.alert('Error', `Failed to send message: ${errorMessage}`);
+        }
+    };
 
     const formatTimestamp = (timestamp: string) => {
         const messageDate = new Date(timestamp);
@@ -293,7 +349,7 @@ const styles = StyleSheet.create({
     },
     infoRow: {
         flexDirection: 'row',
-        justifyContent: 'space-around',
+        justifyContent: 'space-between',
         alignItems: 'center',
         marginBottom: 8,
     },
