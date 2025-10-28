@@ -34,7 +34,7 @@ export default function AdminHome() {
     const testConnection = async () => {
       try {
         console.log('Testing database connection...');
-        const { data, error } = await supabase.from('students').select('count');
+        const { data, error } = await supabase.from('profiles').select('count');
         console.log('Connection test result:', { data, error });
       } catch (err) {
         console.error('Connection test error:', err);
@@ -43,23 +43,23 @@ export default function AdminHome() {
     testConnection();
   }, []);
 
-  // Fetch all user data from user_requests table and peer_listeners table
+  // Fetch all user data from profiles table
   useEffect(() => {
     const fetchUsers = async () => {
       setLoading(true);
       try {
-        console.log('Fetching users from user_requests table...');
+        console.log('Fetching users from profiles table...');
 
-        // Fetch all user requests with their details (includes Students, Experts, and Peer Listeners)
-        const { data: userRequests, error: userError } = await supabase
-          .from('user_requests')
-          .select('id, user_name, username, user_type, registration_number, email, course, phone, dob, created_at')
+        // Fetch all profiles with their details (includes Students, Experts, Peer Listeners, and Admins)
+        const { data: profilesData, error: profileError } = await supabase
+          .from('profiles')
+          .select('id, name, username, type, registration_number, email, course, phone_number, date_of_birth, created_at')
           .order('created_at', { ascending: false });
 
-        console.log('User requests results:', { data: userRequests, error: userError });
+        console.log('Profiles results:', { data: profilesData, error: profileError });
 
-        if (userError) {
-          console.error('Error fetching user requests:', userError);
+        if (profileError) {
+          console.error('Error fetching profiles:', profileError);
         }
 
         const allUsers: any[] = [];
@@ -72,25 +72,25 @@ export default function AdminHome() {
           return diffMinutes <= 30 ? 'Online' : 'Offline';
         };
 
-        // Process user requests data (includes Students, Experts, and Peer Listeners)
-        if (userRequests && userRequests.length > 0) {
-          userRequests.forEach(request => {
+        // Process profiles data (includes Students, Experts, Peer Listeners, and Admins)
+        if (profilesData && profilesData.length > 0) {
+          profilesData.forEach(profile => {
             allUsers.push({
-              id: request.id,
-              name: request.user_name,
-              username: request.username || request.registration_number,
-              reg_no: request.registration_number,
-              email: request.email || 'N/A',
-              course: request.course || 'N/A',
-              type: request.user_type, // 'Student', 'Expert', or 'Peer Listener'
-              status: getOnlineStatus(request.created_at),
-              request_status: 'approved', // Default status since column doesn't exist
-              phone: request.phone || 'N/A',
-              dob: request.dob || 'N/A',
+              id: profile.id,
+              name: profile.name,
+              username: profile.username || profile.registration_number,
+              reg_no: profile.registration_number,
+              email: profile.email || 'N/A',
+              course: profile.course || 'N/A',
+              type: profile.type, // 'STUDENT', 'EXPERT', 'PEER', 'ADMIN'
+              status: getOnlineStatus(profile.created_at),
+              request_status: 'approved', // All users in profiles are approved
+              phone: profile.phone_number || 'N/A',
+              dob: profile.date_of_birth || 'N/A',
               details: 'N/A',
-              created_at: request.created_at,
-              updated_at: request.created_at,
-              category: request.user_type.toLowerCase().replace(' ', '_')
+              created_at: profile.created_at,
+              updated_at: profile.created_at,
+              category: profile.type.toLowerCase()
             });
           });
         }
@@ -118,33 +118,35 @@ export default function AdminHome() {
     if (activeTab === 'home') fetchUsers();
   }, [activeTab]);
 
-  // Fetch requests from Supabase (both user_requests and peer_listeners)
+  // Fetch requests from Supabase (profiles table)
   useEffect(() => {
     const fetchRequests = async () => {
       if (activeTab === 'requests') {
         try {
-          // Fetch user requests (includes Students, Experts, and Peer Listeners)
-          const { data: userRequests, error: userError } = await supabase
-            .from('user_requests')
-            .select('id, user_name, username, user_type, registration_number, email, course, phone, dob, created_at')
+          // Fetch all profiles (includes Students, Experts, Peer Listeners, and Admins)
+          const { data: profilesData, error: profileError } = await supabase
+            .from('profiles')
+            .select('id, name, username, type, registration_number, email, course, phone_number, date_of_birth, created_at')
             .order('created_at', { ascending: false });
 
-          if (userError) {
-            console.error('Error fetching user requests:', userError);
+          if (profileError) {
+            console.error('Error fetching profiles:', profileError);
           }
 
           const allRequests: any[] = [];
 
-          // Add user requests (includes Students, Experts, and Peer Listeners)
-          if (userRequests) {
-            userRequests.forEach(request => {
+          // Add profiles (all registered users are considered "approved")
+          if (profilesData) {
+            profilesData.forEach(profile => {
               allRequests.push({
-                ...request,
-                request_type: 'user_request',
-                user_name: request.user_name,
-                user_type: request.user_type,
-                registration_number: request.registration_number,
-                status: 'approved' // Default status since column doesn't exist
+                ...profile,
+                request_type: 'profile',
+                user_name: profile.name,
+                user_type: profile.type,
+                registration_number: profile.registration_number,
+                phone: profile.phone_number,
+                dob: profile.date_of_birth,
+                status: 'approved' // All users in profiles table are approved
               });
             });
           }
@@ -170,69 +172,41 @@ export default function AdminHome() {
 
     fetchRequests();
 
-    // Set up real-time subscription for new requests
-    const userSubscription = supabase
-      .channel('user_requests')
+    // Set up real-time subscription for new profiles
+    const profileSubscription = supabase
+      .channel('profiles')
       .on('postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'user_requests' },
+        { event: 'INSERT', schema: 'public', table: 'profiles' },
         async (payload) => {
-          const newRequest = {
+          const newProfile = {
             ...payload.new,
-            request_type: 'user_request',
-            user_name: payload.new.user_name,
-            user_type: payload.new.user_type,
-            registration_number: payload.new.registration_number
-          };
-          setRequests(prev => [newRequest, ...prev]);
-          if (payload.new.status === 'pending' && activeTab !== 'requests') {
-            setHasUnreadRequests(true);
-          }
-        }
-      )
-      .on('postgres_changes',
-        { event: 'UPDATE', schema: 'public', table: 'user_requests' },
-        async (payload) => {
-          setRequests(prev => prev.map(req =>
-            req.id === payload.new.id && req.request_type === 'user_request' ? {
-              ...payload.new,
-              request_type: 'user_request',
-              user_name: payload.new.user_name,
-              user_type: payload.new.user_type,
-              registration_number: payload.new.registration_number
-            } : req
-          ));
-        }
-      )
-      .subscribe();
-
-    const peerSubscription = supabase
-      .channel('peer_listeners')
-      .on('postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'peer_listeners' },
-        async (payload) => {
-          const newRequest = {
-            ...payload.new,
-            request_type: 'peer_listener',
+            request_type: 'profile',
             user_name: payload.new.name,
-            user_type: 'Peer Listener',
-            registration_number: payload.new.student_id
+            user_type: payload.new.type,
+            registration_number: payload.new.registration_number,
+            phone: payload.new.phone_number,
+            dob: payload.new.date_of_birth,
+            status: 'approved'
           };
-          setRequests(prev => [newRequest, ...prev]);
-          if (payload.new.status === 'pending' && activeTab !== 'requests') {
+          setRequests(prev => [newProfile, ...prev]);
+          if (activeTab !== 'requests') {
             setHasUnreadRequests(true);
           }
         }
       )
       .on('postgres_changes',
-        { event: 'UPDATE', schema: 'public', table: 'peer_listeners' },
+        { event: 'UPDATE', schema: 'public', table: 'profiles' },
         async (payload) => {
           setRequests(prev => prev.map(req =>
-            req.id === payload.new.id && req.request_type === 'peer_listener' ? {
+            req.id === payload.new.id && req.request_type === 'profile' ? {
               ...payload.new,
-              request_type: 'peer_listener',
+              request_type: 'profile',
               user_name: payload.new.name,
-              user_type: 'Peer Listener',
-              registration_number: payload.new.student_id
+              user_type: payload.new.type,
+              registration_number: payload.new.registration_number,
+              phone: payload.new.phone_number,
+              dob: payload.new.date_of_birth,
+              status: 'approved'
             } : req
           ));
         }
@@ -240,8 +214,7 @@ export default function AdminHome() {
       .subscribe();
 
     return () => {
-      userSubscription.unsubscribe();
-      peerSubscription.unsubscribe();
+      profileSubscription.unsubscribe();
     };
   }, [activeTab]);
 

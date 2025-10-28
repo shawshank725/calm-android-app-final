@@ -38,10 +38,22 @@ export default function AdminSetting() {
 
   const handleLogout = async () => {
     try {
+      // Sign out from Supabase auth (this will clear the session)
+      const { error } = await supabase.auth.signOut();
+      
+      if (error) {
+        console.error('Supabase logout error:', error);
+        Alert.alert('Error', 'Failed to logout properly');
+      }
+      
+      // Clear AsyncStorage
       await AsyncStorage.removeItem('adminUser');
+      
+      // Navigate to login page
       router.replace('/');
     } catch (error) {
       console.error('Logout error:', error);
+      // Still try to navigate even if there's an error
       router.replace('/');
     }
   };

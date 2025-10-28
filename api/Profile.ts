@@ -6,13 +6,15 @@ import Toast from "react-native-toast-message";
 
 export const useGetProfileList = (user_type: string) => {
   return useQuery({
-    queryKey: ["experts"],
+    queryKey: ["profiles", user_type], // Better key based on user type
     queryFn: async() => {
+      console.log(`📋 Fetching profiles with type: ${user_type}`);
       const {data, error} = await supabase.from("profiles").select("*").eq("type",user_type);
       if (error){
-        console.log(error);
-        throw new Error("Error");
+        console.log("❌ Error fetching profiles:", error);
+        throw new Error("Error fetching profiles");
       }
+      console.log(`✅ Found ${data?.length || 0} ${user_type} profiles`);
       return data;
     }
   })

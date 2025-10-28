@@ -170,7 +170,7 @@ export default function StudentRegister() {
           <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
             <Text style={styles.backButtonText}>← Back</Text>
           </TouchableOpacity>
-          <Text style={styles.headerText}>Student Registration</Text>
+          <Text style={styles.headerText}>Registration Page</Text>
         </View>
 
         <ScrollView style={styles.flex1} showsVerticalScrollIndicator={false}>
@@ -302,8 +302,8 @@ const styles = StyleSheet.create({
   svg: { position: 'absolute', top: '20%' },
   header: { flexDirection: 'row', alignItems: 'center', paddingTop: 50, paddingHorizontal: 20, paddingBottom: 15, backgroundColor: 'transparent' },
   backButton: { backgroundColor: Colors.white, paddingVertical: 8, paddingHorizontal: 15, borderRadius: 20, marginRight: 15, elevation: 4, shadowColor: Colors.shadow, shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.3, shadowRadius: 4, borderWidth: 2, borderColor: Colors.primary },
-  backButtonText: { color: Colors.primary, fontSize: 16, fontWeight: 'bold' },
-  headerText: { color: Colors.white, fontSize: 20, fontWeight: 'bold', flex: 1, textShadowColor: Colors.black, textShadowOffset: { width: 2, height: 2 }, textShadowRadius: 3 },
+  backButtonText: { color: Colors.primary, fontSize: 10, fontWeight: 'bold' },
+  headerText: { color: Colors.white, fontSize: 30, fontWeight: 'bold', flex: 1, textShadowColor: Colors.black, textShadowOffset: { width: 2, height: 2 }, textShadowRadius: 3 },
   scrollContainer: { paddingHorizontal: 20, paddingBottom: 30 },
   formContainer: { backgroundColor: 'white', borderRadius: 20, padding: 25, marginTop: 20, elevation: 8, shadowColor: Colors.shadow, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8 },
   inputWrapper: { marginBottom: 20 },

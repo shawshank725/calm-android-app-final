@@ -1430,7 +1430,13 @@ export default function StudentHome() {
         )}
 
         {activeTab === 'mood' && (
-          <MoodCalendar />
+          <ScrollView 
+            style={{ flex: 1, width: '100%' }}
+            contentContainerStyle={{ flexGrow: 1, paddingBottom: 20 }}
+            showsVerticalScrollIndicator={false}
+          >
+            <MoodCalendar />
+          </ScrollView>
         )}
         {activeTab === 'peer' && profile?.type === "PEER" && (
           <PeerScreen />

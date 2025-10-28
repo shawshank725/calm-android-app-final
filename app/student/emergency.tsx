@@ -1,15 +1,24 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Location from 'expo-location';
 import { useRouter } from 'expo-router';
 import { Alert, Linking, ScrollView, StyleSheet, Text, TouchableOpacity } from 'react-native';
 import { Colors } from '@/constants/Colors';
 import { supabase } from '@/lib/supabase';
+import { useAuth } from '@/providers/AuthProvider';
+import { useProfile } from '@/api/Profile';
 
 export default function Emergency() {
   const router = useRouter();
+  const { session } = useAuth();
+  const { data: profile } = useProfile(session?.user?.id);
 
   const handleShareLocation = async () => {
     try {
+      // Check if user is authenticated
+      if (!session?.user?.id || !profile) {
+        Alert.alert('Error', 'User not authenticated. Please login again.');
+        return;
+      }
+
       // Request location permissions
       const { status } = await Location.requestForegroundPermissionsAsync();
       if (status !== 'granted') {
@@ -20,21 +29,6 @@ export default function Emergency() {
       // Get current location
       const location = await Location.getCurrentPositionAsync({});
       const { latitude, longitude } = location.coords;
-
-      // Get student information from AsyncStorage
-      const storedReg = await AsyncStorage.getItem('currentStudentReg');
-      const studentData = await AsyncStorage.getItem('currentStudentData');
-
-      if (!storedReg) {
-        Alert.alert('Error', 'Student information not found. Please login again.');
-        return;
-      }
-
-      let studentName = 'Student';
-      if (studentData) {
-        const data = JSON.parse(studentData);
-        studentName = data.name || data.username || 'Student';
-      }
 
       // Get address from coordinates (optional)
       let address = '';
@@ -53,8 +47,9 @@ export default function Emergency() {
 
       // Save location to Supabase database
       const locationData = {
-        student_reg: storedReg,
-        student_name: studentName,
+        student_id: session.user.id,
+        student_reg: profile.registration_number,
+        student_name: profile.name,
         latitude: latitude,
         longitude: longitude,
         address: address || null,
@@ -63,12 +58,15 @@ export default function Emergency() {
         status: 'active'
       };
 
+      console.log('📍 Sharing location:', locationData);
+
       const { data, error } = await supabase
         .from('student_locations')
-        .insert([locationData]);
+        .insert([locationData])
+        .select();
 
       if (error) {
-        console.error('Error saving location:', error);
+        console.error('❌ Error saving location:', error);
 
         if (error.code === '42501' || error.message.includes('row-level security policy')) {
           Alert.alert(
@@ -94,15 +92,20 @@ export default function Emergency() {
         return;
       }
 
-      console.log('Location shared successfully:', data);
+      console.log('✅ Location shared successfully:', data);
       Alert.alert(
-        'Location Shared',
-        `Your emergency location has been shared with the admin.\n\nLocation: ${latitude.toFixed(6)}, ${longitude.toFixed(6)}${address ? `\nAddress: ${address}` : ''}`,
+        '✅ Location Shared Successfully!',
+        `Your emergency location has been shared with the admin.\n\n` +
+        `📍 Coordinates: ${latitude.toFixed(6)}, ${longitude.toFixed(6)}` +
+        `${address ? `\n📍 Address: ${address}` : ''}\n\n` +
+        `Student: ${profile.name}\n` +
+        `Reg No: ${profile.registration_number}\n\n` +
+        `The admin can now see your location on their dashboard.`,
         [{ text: 'OK', style: 'default' }]
       );
 
     } catch (error) {
-      console.error('Error sharing location:', error);
+      console.error('❌ Error sharing location:', error);
       Alert.alert('Error', 'Failed to share location. Please try again.');
     }
   };

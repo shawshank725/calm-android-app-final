@@ -36,7 +36,39 @@ export default function FrontPage() {
 
   async function signInWithEmail() {
     setIsLoading(true);
-    const { data, error } = await supabase.auth.signInWithPassword({ email: loginInput, password });
+    
+    // Check if input is email or registration number
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    const isEmail = emailRegex.test(loginInput);
+    
+    let email = loginInput;
+    
+    // If input is not email, treat it as registration number
+    if (!isEmail) {
+      // Find user by registration number
+      const { data: profileData, error: profileError } = await supabase
+        .from('profiles')
+        .select('email')
+        .eq('registration_number', loginInput)
+        .single();
+      
+      if (profileError || !profileData) {
+        Toast.show({ 
+          type: 'error', 
+          text1: 'Registration number not found', 
+          text2: 'Please check your registration number',
+          position: 'bottom', 
+          visibilityTime: 2000 
+        });
+        setIsLoading(false);
+        return;
+      }
+      
+      email = profileData.email;
+    }
+    
+    // Login with email and password
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) {
       Toast.show({ type: 'error', text1: error.message, position: 'bottom', visibilityTime: 2000 });
       setIsLoading(false);
@@ -48,6 +80,26 @@ export default function FrontPage() {
 
   return (
     <View style={styles.container}>
+      {/* Help Button - Top Right */}
+      <View style={{ position: 'absolute', top: 60, right: 16, zIndex: 100 }}>
+        <TouchableOpacity
+          style={{
+            backgroundColor: '#4F21A2',
+            paddingVertical: 10,
+            paddingHorizontal: 16,
+            borderRadius: 20,
+            elevation: 4,
+            shadowColor: '#000',
+            shadowOffset: { width: 0, height: 2 },
+            shadowOpacity: 0.3,
+            shadowRadius: 4,
+          }}
+          onPress={() => router.push('./help')}
+        >
+          <Text style={{ color: 'white', fontSize: 16, fontWeight: 'bold', fontFamily: 'Tinos' }}>Help</Text>
+        </TouchableOpacity>
+      </View>
+
       <Image source={require('../assets/images/logo2.png')} style={styles.logo} />
       <Text style={styles.mainTitle}>C.A.L.M</Text>
       <Text style={styles.subTitle}>Spaces</Text>
@@ -56,7 +108,7 @@ export default function FrontPage() {
         <TouchableOpacity style={styles.loginButton} onPress={() => setLoginModalVisible(true)}>
           <Text style={styles.loginButtonText}>Login</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.signupButton} onPress={() => router.push('/select2')}>
+        <TouchableOpacity style={styles.signupButton} onPress={() => router.push('/student-register')}>
           <Text style={styles.signupButtonText}>Sign up</Text>
         </TouchableOpacity>
       </View>
