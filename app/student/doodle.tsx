@@ -463,7 +463,7 @@ export default function EnhancedDoodle() {
             shadowRadius: 2,
           }}
         >
-          <Text style={{ color: '#059669', fontSize: 16, fontWeight: 'bold' }}>💾 Save</Text>
+          <Text style={{ color: '#059669', fontSize: 16, fontWeight: 'bold' }}>Save</Text>
         </TouchableOpacity>
         <TouchableOpacity
           onPress={handleUndo}
@@ -475,7 +475,7 @@ export default function EnhancedDoodle() {
             borderRadius: 12,
           }}
         >
-          <Text style={{ color: "#B45309", fontSize: 16, fontWeight: "bold" }}>↩️ Undo</Text>
+          <Text style={{ color: "#B45309", fontSize: 16, fontWeight: "bold" }}>Undo</Text>
         </TouchableOpacity>
 
         <TouchableOpacity
@@ -488,7 +488,7 @@ export default function EnhancedDoodle() {
             borderRadius: 12,
           }}
         >
-          <Text style={{ color: "#1D4ED8", fontSize: 16, fontWeight: "bold" }}>↪️ Redo</Text>
+          <Text style={{ color: "#1D4ED8", fontSize: 16, fontWeight: "bold" }}>Redo</Text>
         </TouchableOpacity>
 
       </View>

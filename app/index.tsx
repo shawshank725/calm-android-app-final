@@ -22,7 +22,7 @@ export default function FrontPage() {
       if (session && session.user?.id) {
         const { data, error } = await supabase.from('profiles').select('*').eq('id', session.user.id).single();
         if (error) {
-          Toast.show({ type: 'error', text1: 'Failed to fetch profile', position: 'bottom' });
+          Toast.show({ type: 'error', text1: 'Failed to fetch profile', position: 'top' });
           return;
         }
         if (data.type === 'STUDENT' || data.type === 'PEER') router.replace('/student/student-home');
@@ -57,7 +57,7 @@ export default function FrontPage() {
           type: 'error', 
           text1: 'Registration number not found', 
           text2: 'Please check your registration number',
-          position: 'bottom', 
+          position: 'top', 
           visibilityTime: 2000 
         });
         setIsLoading(false);
@@ -70,11 +70,11 @@ export default function FrontPage() {
     // Login with email and password
     const { data, error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) {
-      Toast.show({ type: 'error', text1: error.message, position: 'bottom', visibilityTime: 2000 });
+      Toast.show({ type: 'error', text1: error.message, position: 'top', visibilityTime: 2000 });
       setIsLoading(false);
       return;
     }
-    Toast.show({ type: 'success', text1: 'Login successful', position: 'bottom', visibilityTime: 1500 });
+    Toast.show({ type: 'success', text1: 'Login successful', position: 'top', visibilityTime: 1500 });
     setIsLoading(false);
   }
 

@@ -104,7 +104,6 @@ export default function ExpertSetting() {
               <Image source={profilePics[selectedProfilePic]} style={styles.profilePic} />
             </View>
           </Animated.View>
-          <Text style={styles.welcomeText}>Welcome, Dr. {expertName}!</Text>
 
           <TouchableOpacity style={styles.editPhotoBtn} onPress={() => setChoosePicModal(true)}>
             <Text style={styles.editPhotoText}>Edit your profile photo</Text>
@@ -244,13 +243,6 @@ const styles = StyleSheet.create({
     borderRadius: 65,
     resizeMode: 'cover',
   },
-  welcomeText: {
-    color: Colors.primary,
-    fontSize: 22,
-    fontWeight: 'bold',
-    textAlign: 'center',
-    marginBottom: 16,
-  },
   editPhotoBtn: {
     backgroundColor: Colors.primary,
     borderRadius: 20,
@@ -370,15 +362,6 @@ const styles = StyleSheet.create({
     height: '100%',
     borderRadius: 65,
     resizeMode: 'cover',
-  },
-  exWelcomeText: {
-    color: Colors.primary,
-    fontSize: 22,
-    fontWeight: 'bold',
-    marginBottom: 16,
-    textShadowColor: 'rgba(0, 0, 0, 0.1)',
-    textShadowOffset: { width: 1, height: 1 },
-    textShadowRadius: 1,
   },
   exEditPhotoBtn: {
     backgroundColor: Colors.white,
@@ -557,11 +540,6 @@ const styles = StyleSheet.create({
     width: '100%',
     marginBottom: 20,
     paddingHorizontal: 10,
-  },
-  exWelcomeContainer: {
-    flex: 1,
-    marginLeft: 20,
-    alignItems: 'flex-start',
   },
   exInfoGrid: {
     width: '100%',

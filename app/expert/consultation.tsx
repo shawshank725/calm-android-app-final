@@ -316,7 +316,6 @@ export default function ConsultationPage() {
             <Text style={styles.messagePreview} numberOfLines={2}>
                 {item.latest_message}
             </Text>
-            <Text style={styles.messageId}>ID: {item.sender_id}</Text>
         </TouchableOpacity>
     );
 
