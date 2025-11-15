@@ -1,6 +1,7 @@
 import { useRouter } from 'expo-router';
 import { JSX, useEffect, useState } from 'react';
 import { KeyboardAvoidingView, Platform, SafeAreaView, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View, Modal, Alert, FlatList, Image } from 'react-native';
+import * as Updates from 'expo-updates';
 import { supabase } from '@/lib/supabase';
 import Toast from 'react-native-toast-message';
 import { Ionicons } from '@expo/vector-icons';
@@ -34,6 +35,51 @@ export default function AdminHome() {
   const [selectedUser, setSelectedUser] = useState<any>(null);
   const [changingType, setChangingType] = useState(false);
   const router = useRouter();
+  
+  // Check for OTA updates on app launch
+  useEffect(() => {
+    async function checkForUpdates() {
+      try {
+        console.log('Checking for updates...');
+        console.log('Is DEV mode:', __DEV__);
+        console.log('Updates runtime version:', Updates.runtimeVersion);
+        
+        const update = await Updates.checkForUpdateAsync();
+        console.log('Update check result:', update);
+        
+        if (update.isAvailable) {
+          console.log('Update available! Fetching...');
+          await Updates.fetchUpdateAsync();
+          console.log('Update fetched successfully');
+          
+          Alert.alert(
+            '🎉 Update Available',
+            'A new version is available. The app will reload to apply the update.',
+            [
+              {
+                text: 'Update Now',
+                onPress: async () => {
+                  console.log('Reloading app...');
+                  await Updates.reloadAsync();
+                }
+              },
+              {
+                text: 'Later',
+                style: 'cancel',
+                onPress: () => console.log('User postponed update')
+              }
+            ]
+          );
+        } else {
+          console.log('No updates available');
+        }
+      } catch (error) {
+        console.error('Error checking for updates:', error);
+      }
+    }
+    checkForUpdates();
+  }, []);
+
   // Redirect to admin AI page when AI tab is selected
   useEffect(() => {
     if (activeTab === 'ai') {

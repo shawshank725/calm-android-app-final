@@ -8,6 +8,7 @@ import React, { useEffect, useState } from 'react';
 import {  ActivityIndicator, Alert, Animated, Dimensions, Easing, Image, KeyboardAvoidingView, Modal, Platform,
   SafeAreaView, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View, FlatList
 } from 'react-native';
+import * as Updates from 'expo-updates';
 import * as ImagePicker from 'expo-image-picker';
 import * as MediaLibrary from 'expo-media-library';
 import { Colors } from '@/constants/Colors';
@@ -67,6 +68,50 @@ export default function ExpertHome() {
   const { session } = useAuth();
   const { data: profile } = useProfile(session?.user.id);
   const { mutateAsync: insertNotification } = useInsertNotification();
+
+  // Check for OTA updates on app launch
+  useEffect(() => {
+    async function checkForUpdates() {
+      try {
+        console.log('Checking for updates...');
+        console.log('Is DEV mode:', __DEV__);
+        console.log('Updates runtime version:', Updates.runtimeVersion);
+        
+        const update = await Updates.checkForUpdateAsync();
+        console.log('Update check result:', update);
+        
+        if (update.isAvailable) {
+          console.log('Update available! Fetching...');
+          await Updates.fetchUpdateAsync();
+          console.log('Update fetched successfully');
+          
+          Alert.alert(
+            '🎉 Update Available',
+            'A new version is available. The app will reload to apply the update.',
+            [
+              {
+                text: 'Update Now',
+                onPress: async () => {
+                  console.log('Reloading app...');
+                  await Updates.reloadAsync();
+                }
+              },
+              {
+                text: 'Later',
+                style: 'cancel',
+                onPress: () => console.log('User postponed update')
+              }
+            ]
+          );
+        } else {
+          console.log('No updates available');
+        }
+      } catch (error) {
+        console.error('Error checking for updates:', error);
+      }
+    }
+    checkForUpdates();
+  }, []);
 
   // Animation values for upload progress
   const progressAnim = React.useRef(new Animated.Value(0)).current;
