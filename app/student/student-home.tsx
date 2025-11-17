@@ -3,7 +3,6 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, Animated, Dimensions, Easing, Image, KeyboardAvoidingView, Modal, Platform, ScrollView, Text, TouchableOpacity, View } from 'react-native';
-import * as Updates from 'expo-updates';
 import { Colors } from '@/constants/Colors';
 import { supabase } from '@/lib/supabase';
 import { useProfile } from '@/api/Profile';
@@ -85,56 +84,6 @@ export default function StudentHome() {
 
   const {session } = useAuth();
   const {data:profile } = useProfile(session?.user.id);
-
-  // Function to check for updates
-  const checkForUpdates = async () => {
-    try {
-      console.log('Checking for updates...');
-      console.log('Is DEV mode:', __DEV__);
-      console.log('Updates runtime version:', Updates.runtimeVersion);
-      console.log('Update URL:', Updates.updateId);
-      
-      const update = await Updates.checkForUpdateAsync();
-      console.log('Update check result:', update);
-      
-      if (update.isAvailable) {
-        console.log('Update available! Fetching...');
-        await Updates.fetchUpdateAsync();
-        console.log('Update fetched successfully');
-        
-        Alert.alert(
-          '🎉 Update Available',
-          'A new version is available. The app will reload to apply the update.',
-          [
-            {
-              text: 'Update Now',
-              onPress: async () => {
-                console.log('Reloading app...');
-                await Updates.reloadAsync();
-              }
-            },
-            {
-              text: 'Later',
-              style: 'cancel',
-              onPress: () => console.log('User postponed update')
-            }
-          ]
-        );
-      } else {
-        console.log('No updates available');
-        Alert.alert('No Updates', 'You are running the latest version!');
-      }
-    } catch (error) {
-      console.error('Error checking for updates:', error);
-      Alert.alert('Error', `Failed to check for updates: ${error}`);
-    }
-  };
-
-  // Check for OTA updates on app launch
-  useEffect(() => {
-    checkForUpdates();
-  }, []);
-
 
   // Animated bubble background (home tab only)
   const { height: screenHeight } = Dimensions.get('window');
@@ -1693,28 +1642,6 @@ export default function StudentHome() {
                 <Text style={{ color: Colors.text, fontSize: 13, marginLeft: 10, fontWeight: 'bold', textShadowColor: 'rgba(255,255,255,0.8)', textShadowOffset: { width: 1, height: 1 }, textShadowRadius: 2 }}>{getGreeting(profile?.name)}</Text>
               </View>
             </View>
-
-            {/* Check for Updates Button */}
-            <TouchableOpacity
-              onPress={checkForUpdates}
-              style={{
-                position: 'absolute',
-                top: 40,
-                right: 16,
-                zIndex: 10,
-                backgroundColor: Colors.primary,
-                borderRadius: 20,
-                padding: 10,
-                borderWidth: 2,
-                borderColor: Colors.accent,
-                shadowColor: Colors.shadow,
-                shadowOffset: { width: 0, height: 2 },
-                shadowOpacity: 0.18,
-                shadowRadius: 4
-              }}
-            >
-              <Text style={{ color: Colors.white, fontSize: 12, fontWeight: 'bold' }}>Check Updates</Text>
-            </TouchableOpacity>
 
             {/* Mood Check-In Button removed as per request */}
             <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', marginTop: 120, paddingHorizontal: 20 }}>

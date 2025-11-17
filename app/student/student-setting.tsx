@@ -4,6 +4,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import { Alert, Animated, Image, Modal, Pressable, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import * as Updates from 'expo-updates';
 import { Colors } from '@/constants/Colors';
 import { useAuth } from '@/providers/AuthProvider';
 import { useProfile } from '@/api/Profile';
@@ -33,6 +34,55 @@ export default function StudentSetting() {
 
   const { session } = useAuth();
   const { data: profile, isLoading } = useProfile(session?.user.id);
+
+  // Function to check for updates
+  const checkForUpdates = async () => {
+    // Only check for updates in production builds (not Expo Go)
+    if (!Updates.isEnabled || __DEV__) {
+      console.log('Updates are not enabled in this environment (Expo Go or Dev)');
+      Alert.alert('Development Mode', 'Update checking is only available in production builds (APK).');
+      return;
+    }
+
+    try {
+      console.log('Checking for updates...');
+      console.log('Updates runtime version:', Updates.runtimeVersion);
+      
+      const update = await Updates.checkForUpdateAsync();
+      console.log('Update check result:', update);
+      
+      if (update.isAvailable) {
+        console.log('Update available! Fetching...');
+        await Updates.fetchUpdateAsync();
+        console.log('Update fetched successfully');
+        
+        Alert.alert(
+          '🎉 Update Available',
+          'A new version is available. The app will reload to apply the update.',
+          [
+            {
+              text: 'Update Now',
+              onPress: async () => {
+                console.log('Reloading app...');
+                await Updates.reloadAsync();
+              }
+            },
+            {
+              text: 'Later',
+              style: 'cancel',
+              onPress: () => console.log('User postponed update')
+            }
+          ]
+        );
+      } else {
+        console.log('No updates available');
+        Alert.alert('No Updates', 'You are running the latest version!');
+      }
+    } catch (error) {
+      console.error('Error checking for updates:', error);
+      Alert.alert('Error', `Failed to check for updates: ${error}`);
+    }
+  };
 
   // Load profile picture from AsyncStorage
   useEffect(() => {
@@ -190,6 +240,12 @@ export default function StudentSetting() {
             </View>
           </View>
         </View>
+
+        {/* Check for Updates Button */}
+        <TouchableOpacity style={styles.updateBtn} onPress={checkForUpdates}>
+          <Ionicons name="refresh-outline" size={20} color={Colors.primary} />
+          <Text style={styles.updateText}>Check for Updates</Text>
+        </TouchableOpacity>
 
         {/* Logout Button */}
         <TouchableOpacity style={styles.logoutBtn} onPress={handleLogout}>
@@ -414,6 +470,33 @@ const styles = StyleSheet.create({
   },
   logoutText: {
     color: Colors.error,
+    fontWeight: 'bold',
+    fontSize: 16,
+    letterSpacing: 1,
+  },
+  updateBtn: {
+    backgroundColor: Colors.white,
+    borderRadius: 25,
+    paddingVertical: 12,
+    paddingHorizontal: 40,
+    marginTop: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    borderWidth: 2,
+    borderColor: Colors.primary,
+    shadowColor: Colors.shadow,
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.23,
+    shadowRadius: 2.62,
+    elevation: 4,
+  },
+  updateText: {
+    color: Colors.primary,
     fontWeight: 'bold',
     fontSize: 16,
     letterSpacing: 1,
