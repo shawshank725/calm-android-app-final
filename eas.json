@@ -1,13 +1,5 @@
 {
-  "cli": {
-    "version": ">= 16.27.0"
-  },
   "build": {
-    "preview": {
-      "android": {
-        "buildType": "apk"
-      }
-    },
     "production": {
       "android": {
         "buildType": "apk"

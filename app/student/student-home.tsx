@@ -3,6 +3,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, Animated, Dimensions, Easing, Image, KeyboardAvoidingView, Modal, Platform, ScrollView, Text, TouchableOpacity, View } from 'react-native';
+import * as Updates from 'expo-updates';
 import { Colors } from '@/constants/Colors';
 import { supabase } from '@/lib/supabase';
 import { useProfile } from '@/api/Profile';
@@ -84,6 +85,40 @@ export default function StudentHome() {
 
   const {session } = useAuth();
   const {data:profile } = useProfile(session?.user.id);
+
+  // Check for OTA updates on app launch
+  useEffect(() => {
+    async function checkForUpdates() {
+      if (__DEV__) return; // Skip in development
+      
+      try {
+        const update = await Updates.checkForUpdateAsync();
+        
+        if (update.isAvailable) {
+          await Updates.fetchUpdateAsync();
+          Alert.alert(
+            '🎉 Update Available',
+            'A new version is available. Restart to apply updates?',
+            [
+              {
+                text: 'Later',
+                style: 'cancel'
+              },
+              {
+                text: 'Restart Now',
+                onPress: async () => {
+                  await Updates.reloadAsync();
+                }
+              }
+            ]
+          );
+        }
+      } catch (error) {
+        console.error('Error checking for updates:', error);
+      }
+    }
+    checkForUpdates();
+  }, []);
 
   // Animated bubble background (home tab only)
   const { height: screenHeight } = Dimensions.get('window');

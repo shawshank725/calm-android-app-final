@@ -2,7 +2,7 @@
   "expo": {
     "name": "C.A.L.M Space",
     "slug": "calm-space",
-    "version": "1.0.2",
+    "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/logo2.png",
     "scheme": "calm-space",
@@ -11,8 +11,7 @@
     "updates": {
       "enabled": true,
       "checkAutomatically": "ON_LOAD",
-      "fallbackToCacheTimeout": 0,
-      "url": "https://u.expo.dev/06a67934-0a30-4a9f-bbb2-b6c7c085347d"
+      "fallbackToCacheTimeout": 0
     },
     "runtimeVersion": {
       "policy": "appVersion"
@@ -23,14 +22,8 @@
     },
     "android": {
       "package": "com.calmspace.app",
-      "versionCode": 3,
+      "versionCode": 1,
       "permissions": [
-        "RECORD_AUDIO",
-        "READ_EXTERNAL_STORAGE",
-        "WRITE_EXTERNAL_STORAGE",
-        "CAMERA",
-        "android.permission.RECORD_AUDIO",
-        "android.permission.MODIFY_AUDIO_SETTINGS",
         "RECORD_AUDIO",
         "READ_EXTERNAL_STORAGE",
         "WRITE_EXTERNAL_STORAGE",
@@ -72,10 +65,11 @@
       "backgroundColor": "#ffffff"
     },
     "extra": {
+      "router": {},
       "eas": {
-        "projectId": "06a67934-0a30-4a9f-bbb2-b6c7c085347d"
+        "projectId": "766744c8-deca-4ae4-b33e-04085a5d31b2"
       }
-    }
+    },
+    "owner": "varun45"
   }
 }
-
