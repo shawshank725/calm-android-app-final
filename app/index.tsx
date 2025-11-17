@@ -100,7 +100,7 @@ export default function FrontPage() {
         </TouchableOpacity>
       </View>
 
-      <Image source={require('../assets/images/logo2.png')} style={styles.logo} />
+      <Image source={require('../assets/images/icon.png')} style={styles.logo} />
       <Text style={styles.mainTitle}>C.A.L.M</Text>
       <Text style={styles.subTitle}>Spaces</Text>
 
@@ -147,7 +147,7 @@ export default function FrontPage() {
 const styles = StyleSheet.create({
   loaderContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   container: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: 'white' },
-  logo: { width: 450, height: 300, marginLeft: 25 },
+  logo: { width: 400, height: 250, marginLeft: 5 },
   mainTitle: { textAlign: 'center', fontSize: 80, fontWeight: '600', color: '#4F21A2', fontFamily: 'Agbalumo', letterSpacing: -1 },
   subTitle: { marginTop: -19, textAlign: 'center', fontSize: 60, color: '#4F21A2', fontFamily: 'Agbalumo' },
   buttonContainer: { marginTop: 40, width: '80%', alignItems: 'center' },
