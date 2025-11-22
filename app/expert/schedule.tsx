@@ -76,9 +76,90 @@ export default function ExpertSchedulePage() {
     endMinute: '50'
   });
 
+  // Function to automatically generate default slots for all dates in the month
+  const autoGenerateMonthlySlots = async () => {
+    if (!profile) return;
+
+    try {
+      const startOfMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 1);
+      const endOfMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 0);
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+
+      // Get all existing slots for the month
+      const { data: existingSlots, error: fetchError } = await supabase
+        .from('expert_schedule')
+        .select('date, start_time, end_time')
+        .eq('expert_id', profile?.id)
+        .gte('date', formatDateToLocalString(startOfMonth))
+        .lte('date', formatDateToLocalString(endOfMonth));
+
+      if (fetchError) {
+        console.error('Error fetching existing slots:', fetchError);
+        return;
+      }
+
+      // Create a Set of date+time combinations that already exist
+      const existingSlotKeys = new Set(
+        existingSlots?.map(slot => `${slot.date}_${slot.start_time}_${slot.end_time}`) || []
+      );
+
+      // Generate slots for all dates in the month that don't have slots yet
+      const slotsToInsert: any[] = [];
+      
+      for (let day = 1; day <= endOfMonth.getDate(); day++) {
+        const currentDate = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), day);
+        const dateString = formatDateToLocalString(currentDate);
+
+        // Skip if date is in the past
+        if (currentDate < today) {
+          continue;
+        }
+
+        // Add default slots for this date if they don't exist
+        DEFAULT_SLOTS.forEach(slot => {
+          const slotKey = `${dateString}_${slot.start}_${slot.end}`;
+          
+          // Only add if this exact slot doesn't exist
+          if (!existingSlotKeys.has(slotKey)) {
+            slotsToInsert.push({
+              expert_registration_number: profile?.registration_number,
+              expert_name: profile?.name,
+              expert_id: profile?.id,
+              date: dateString,
+              start_time: slot.start,
+              end_time: slot.end,
+              is_available: true
+            });
+          }
+        });
+      }
+
+      // Insert all slots at once if there are any
+      if (slotsToInsert.length > 0) {
+        console.log(`📅 Auto-generating ${slotsToInsert.length} slots for the month...`);
+        
+        const { error: insertError } = await supabase
+          .from('expert_schedule')
+          .insert(slotsToInsert);
+
+        if (insertError) {
+          console.error('Error auto-generating slots:', insertError);
+        } else {
+          console.log('✅ Successfully auto-generated monthly slots');
+          await loadAllSchedules();
+        }
+      }
+    } catch (error) {
+      console.error('Error in autoGenerateMonthlySlots:', error);
+    }
+  };
+
   useEffect(() => {
     if (profile && currentMonth) {
       loadAllSchedules();
+      // Automatically generate default slots for all dates in the month
+      autoGenerateMonthlySlots();
     }
   }, [profile, currentMonth]);
 
@@ -224,53 +305,6 @@ export default function ExpertSchedulePage() {
   const handleDatePress = async (date: Date) => {
     setSelectedDate(date);
     await loadSlotsForDate(date);
-
-    // Auto-add default slots if no slots exist for this date
-    const dateString = formatDateToLocalString(date);
-    const existingSlots = allSchedules.get(dateString);
-
-    if (!existingSlots || existingSlots.length === 0) {
-      // Automatically add default slots only if none exist
-      setLoading(true);
-      try {
-        // Double-check no slots exist before inserting
-        const { data: checkExisting } = await supabase
-          .from('expert_schedule')
-          .select('id, start_time, end_time')
-          .eq('expert_id', profile?.id)
-          .eq('date', dateString);
-
-        if (checkExisting && checkExisting.length > 0) {
-          // Slots were just added, reload them
-          await loadSlotsForDate(date);
-          setLoading(false);
-          return;
-        }
-
-        const slotsToAdd = DEFAULT_SLOTS.map(slot => ({
-          expert_registration_number: profile?.registration_number,
-          expert_name: profile?.name,
-          expert_id: profile?.id,
-          date: dateString,
-          start_time: slot.start,
-          end_time: slot.end,
-          is_available: true
-        }));
-
-        const { error } = await supabase
-          .from('expert_schedule')
-          .insert(slotsToAdd);
-
-        if (!error) {
-          await loadSlotsForDate(date);
-          await loadAllSchedules();
-        }
-      } catch (error) {
-        console.error('Error auto-adding slots:', error);
-      } finally {
-        setLoading(false);
-      }
-    }
   };
 
   const handleAddCustomSlot = async () => {

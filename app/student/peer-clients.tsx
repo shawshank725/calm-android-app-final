@@ -150,7 +150,7 @@ export default function PeerClientsPage() {
       // Fetch additional user details from profiles table
       const { data: profileData, error } = await supabase
         .from('profiles')
-        .select('email, phone, type')
+        .select('email, type')
         .eq('registration_number', parseInt(client.studentReg))
         .single();
 
@@ -162,7 +162,6 @@ export default function PeerClientsPage() {
       const clientDetails: ClientDetails = {
         ...client,
         studentEmail: profileData?.email,
-        studentPhone: profileData?.phone,
         studentType: profileData?.type,
       };
 
@@ -261,18 +260,109 @@ export default function PeerClientsPage() {
           text: 'Approve',
           onPress: async () => {
             try {
-              const { error } = await supabase
+              // First, get the session details to update the student_schedule
+              const { data: sessionData, error: fetchError } = await supabase
+                .from('book_request')
+                .select('*')
+                .eq('id', clientId)
+                .single();
+
+              if (fetchError) {
+                console.error('Error fetching session details:', fetchError);
+                Alert.alert('Error', 'Failed to fetch session details');
+                return;
+              }
+
+              if (!sessionData) {
+                Alert.alert('Error', 'Session not found');
+                return;
+              }
+
+              // Convert session_time format (e.g., "09:00" or "09:00 AM") to database format
+              const convertTimeToDBFormat = (timeStr: string): string => {
+                // If already in HH:MM:SS format, return as is
+                if (timeStr.match(/^\d{2}:\d{2}:\d{2}$/)) {
+                  return timeStr;
+                }
+                // If in HH:MM format, add :00
+                if (timeStr.match(/^\d{1,2}:\d{2}$/)) {
+                  const [hours, minutes] = timeStr.split(':');
+                  return `${hours.padStart(2, '0')}:${minutes}:00`;
+                }
+                return timeStr;
+              };
+
+              const sessionTimeFormatted = convertTimeToDBFormat(sessionData.session_time);
+
+              // Check if slot is still available in student_schedule
+              const { data: availableSlots, error: slotCheckError } = await supabase
+                .from('student_schedule')
+                .select('*')
+                .eq('peer_registration_number', profile?.registration_number)
+                .eq('date', sessionData.session_date)
+                .eq('is_available', true);
+
+              if (slotCheckError) {
+                console.error('Error checking slot availability:', slotCheckError);
+                Alert.alert('Error', 'Failed to check slot availability');
+                return;
+              }
+
+              // Find matching slot by time
+              const matchingSlot = availableSlots?.find(slot => 
+                slot.start_time === sessionTimeFormatted || 
+                slot.start_time.substring(0, 5) === sessionData.session_time.substring(0, 5)
+              );
+
+              if (!matchingSlot) {
+                Alert.alert(
+                  'Slot Unavailable',
+                  'This time slot is no longer available. It may have been booked by another student.',
+                  [{ text: 'OK' }]
+                );
+                // Update the request to rejected since slot is not available
+                await supabase
+                  .from('book_request')
+                  .update({ status: 'rejected' })
+                  .eq('id', clientId);
+                await loadClients();
+                return;
+              }
+
+              // Approve the session in book_request
+              const { error: approveError } = await supabase
                 .from('book_request')
                 .update({ status: 'approved' })
                 .eq('id', clientId);
 
-              if (error) {
-                console.error('Error approving session:', error);
+              if (approveError) {
+                console.error('Error approving session:', approveError);
                 Alert.alert('Error', 'Failed to approve session');
-              } else {
-                Alert.alert('Success', 'Session approved successfully');
-                await loadClients();
+                return;
               }
+
+              // Update the slot in student_schedule to mark as booked
+              const { error: updateSlotError } = await supabase
+                .from('student_schedule')
+                .update({ 
+                  is_available: false,
+                  booked_by: sessionData.student_id
+                })
+                .eq('id', matchingSlot.id);
+
+              if (updateSlotError) {
+                console.error('Error updating slot availability:', updateSlotError);
+                // Rollback the approval
+                await supabase
+                  .from('book_request')
+                  .update({ status: 'pending' })
+                  .eq('id', clientId);
+                Alert.alert('Error', 'Failed to update slot availability. Please try again.');
+                return;
+              }
+
+              Alert.alert('Success', 'Session approved successfully and slot marked as booked');
+              await loadClients();
             } catch (err) {
               console.error('Error:', err);
               Alert.alert('Error', 'An error occurred');
@@ -294,6 +384,18 @@ export default function PeerClientsPage() {
           style: 'destructive',
           onPress: async () => {
             try {
+              // Get session details first
+              const { data: sessionData, error: fetchError } = await supabase
+                .from('book_request')
+                .select('*')
+                .eq('id', clientId)
+                .single();
+
+              if (fetchError) {
+                console.error('Error fetching session details:', fetchError);
+              }
+
+              // Update the request to rejected
               const { error } = await supabase
                 .from('book_request')
                 .update({ status: 'rejected' })
@@ -303,6 +405,23 @@ export default function PeerClientsPage() {
                 console.error('Error rejecting session:', error);
                 Alert.alert('Error', 'Failed to reject session');
               } else {
+                // If session was previously approved, free the slot
+                if (sessionData && sessionData.status === 'approved') {
+                  const sessionTimeFormatted = sessionData.session_time.includes(':') 
+                    ? `${sessionData.session_time}:00` 
+                    : sessionData.session_time;
+
+                  await supabase
+                    .from('student_schedule')
+                    .update({ 
+                      is_available: true,
+                      booked_by: null
+                    })
+                    .eq('peer_registration_number', profile?.registration_number)
+                    .eq('date', sessionData.session_date)
+                    .eq('booked_by', sessionData.student_id);
+                }
+
                 Alert.alert('Success', 'Session rejected');
                 await loadClients();
               }
@@ -326,6 +445,18 @@ export default function PeerClientsPage() {
           text: 'Complete',
           onPress: async () => {
             try {
+              // Get session details first
+              const { data: sessionData, error: fetchError } = await supabase
+                .from('book_request')
+                .select('*')
+                .eq('id', clientId)
+                .single();
+
+              if (fetchError) {
+                console.error('Error fetching session details:', fetchError);
+              }
+
+              // Update the request to complete
               const { error } = await supabase
                 .from('book_request')
                 .update({ status: 'complete' })
@@ -335,7 +466,24 @@ export default function PeerClientsPage() {
                 console.error('Error completing session:', error);
                 Alert.alert('Error', 'Failed to mark session as completed');
               } else {
-                Alert.alert('Success', 'Session marked as completed');
+                // Free the slot after session is complete
+                if (sessionData) {
+                  const sessionTimeFormatted = sessionData.session_time.includes(':') 
+                    ? `${sessionData.session_time}:00` 
+                    : sessionData.session_time;
+
+                  await supabase
+                    .from('student_schedule')
+                    .update({ 
+                      is_available: true,
+                      booked_by: null
+                    })
+                    .eq('peer_registration_number', profile?.registration_number)
+                    .eq('date', sessionData.session_date)
+                    .eq('booked_by', sessionData.student_id);
+                }
+
+                Alert.alert('Success', 'Session marked as completed and slot freed');
                 await loadClients();
               }
             } catch (err) {

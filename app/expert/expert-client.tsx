@@ -226,6 +226,9 @@ export default function ExpertClientPage() {
           style: 'destructive',
           onPress: async () => {
             try {
+              // Get current session status before updating
+              const wasApproved = session.status === 'approved';
+
               const { error } = await supabase
                 .from('book_request')
                 .update({
@@ -238,7 +241,36 @@ export default function ExpertClientPage() {
                 console.error('Error rejecting session:', error);
                 Alert.alert('Error', 'Failed to reject session. Please try again.');
               } else {
-                Alert.alert('Success', 'Session rejected.');
+                // If session was previously approved, free the slot
+                if (wasApproved) {
+                  const convertTimeFormat = (timeStr: string): string => {
+                    const [time, period] = timeStr.split(' ');
+                    let [hours, minutes] = time.split(':');
+                    let hour = parseInt(hours);
+
+                    if (period === 'PM' && hour !== 12) {
+                      hour += 12;
+                    } else if (period === 'AM' && hour === 12) {
+                      hour = 0;
+                    }
+
+                    return `${hour.toString().padStart(2, '0')}:${minutes}:00`;
+                  };
+
+                  const startTime = convertTimeFormat(session.session_time);
+
+                  await supabase
+                    .from('expert_schedule')
+                    .update({
+                      is_available: true,
+                      booked_by: null
+                    })
+                    .eq('expert_registration_number', session.expert_registration_number)
+                    .eq('date', session.session_date)
+                    .eq('start_time', startTime);
+                }
+
+                Alert.alert('Success', 'Session rejected and slot freed.');
                 await loadPatients();
               }
             } catch (err) {
@@ -262,6 +294,9 @@ export default function ExpertClientPage() {
           style: 'destructive',
           onPress: async () => {
             try {
+              // Check if session was approved before deleting
+              const wasApproved = session.status === 'approved';
+
               const { error } = await supabase
                 .from('book_request')
                 .delete()
@@ -271,7 +306,36 @@ export default function ExpertClientPage() {
                 console.error('Error deleting session:', error);
                 Alert.alert('Error', 'Failed to delete session. Please try again.');
               } else {
-                Alert.alert('Success', 'Session request deleted successfully.');
+                // If session was approved, free the slot
+                if (wasApproved) {
+                  const convertTimeFormat = (timeStr: string): string => {
+                    const [time, period] = timeStr.split(' ');
+                    let [hours, minutes] = time.split(':');
+                    let hour = parseInt(hours);
+
+                    if (period === 'PM' && hour !== 12) {
+                      hour += 12;
+                    } else if (period === 'AM' && hour === 12) {
+                      hour = 0;
+                    }
+
+                    return `${hour.toString().padStart(2, '0')}:${minutes}:00`;
+                  };
+
+                  const startTime = convertTimeFormat(session.session_time);
+
+                  await supabase
+                    .from('expert_schedule')
+                    .update({
+                      is_available: true,
+                      booked_by: null
+                    })
+                    .eq('expert_registration_number', session.expert_registration_number)
+                    .eq('date', session.session_date)
+                    .eq('start_time', startTime);
+                }
+
+                Alert.alert('Success', 'Session request deleted and slot freed.');
                 await loadPatients();
               }
             } catch (err) {

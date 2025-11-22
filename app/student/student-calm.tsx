@@ -630,6 +630,54 @@ export default function StudentCalm() {
           // Continue anyway - non-critical check
         }
 
+        // Check if the slot is still available in expert_schedule before booking
+        const convertTimeToDBFormat = (timeStr: string): string => {
+          const match = timeStr.match(/(\d+):(\d+)\s*(AM|PM)/i);
+          if (!match) return timeStr;
+
+          let hours = parseInt(match[1]);
+          const minutes = match[2];
+          const period = match[3].toUpperCase();
+
+          if (period === 'PM' && hours !== 12) {
+            hours += 12;
+          } else if (period === 'AM' && hours === 12) {
+            hours = 0;
+          }
+
+          return `${hours.toString().padStart(2, '0')}:${minutes}:00`;
+        };
+
+        const sessionTimeFormatted = convertTimeToDBFormat(selectedTime);
+
+        const { data: slotCheck, error: slotCheckError } = await supabase
+          .from('expert_schedule')
+          .select('*')
+          .eq('expert_registration_number', expert?.registration_number || selectedPsychologist)
+          .eq('date', selectedDate)
+          .eq('is_available', true);
+
+        if (slotCheckError) {
+          console.error('Error checking slot availability:', slotCheckError);
+          Alert.alert('Error', 'Failed to verify slot availability. Please try again.');
+          return;
+        }
+
+        const availableSlot = slotCheck?.find(slot => 
+          slot.start_time === sessionTimeFormatted
+        );
+
+        if (!availableSlot) {
+          Alert.alert(
+            'Slot No Longer Available',
+            'This time slot has just been booked by another student. Please select a different time slot.',
+            [{ text: 'OK' }]
+          );
+          // Refresh the slots
+          await loadAvailableTimeSlots(expert?.registration_number || selectedPsychologist, selectedDate);
+          return;
+        }
+
         // Save to Supabase book_request table
         const { data: supabaseData, error: supabaseError } = await supabase
           .from('book_request')
@@ -687,6 +735,11 @@ export default function StudentCalm() {
         // After successful booking, refresh the booked sessions
         await loadBookedSessions();
         await loadSessionHistory();
+
+        // Refresh the expert time slots to show updated availability
+        if (selectedDate && (expert?.registration_number || selectedPsychologist)) {
+          await loadAvailableTimeSlots(expert?.registration_number || selectedPsychologist, selectedDate);
+        }
 
         // Reset selections and close modal
         setSelectedDate(null);
@@ -783,6 +836,40 @@ export default function StudentCalm() {
           console.warn('Active session pre-check failed:', e);
         }
 
+        // Check if the slot is still available in student_schedule before booking
+        const sessionTimeFormatted = selectedPeerTime.includes(':') 
+          ? `${selectedPeerTime}:00` 
+          : selectedPeerTime;
+
+        const { data: slotCheck, error: slotCheckError } = await supabase
+          .from('student_schedule')
+          .select('*')
+          .eq('peer_registration_number', peerListener.registration_number)
+          .eq('date', selectedPeerDate)
+          .eq('is_available', true);
+
+        if (slotCheckError) {
+          console.error('Error checking slot availability:', slotCheckError);
+          Alert.alert('Error', 'Failed to verify slot availability. Please try again.');
+          return;
+        }
+
+        const availableSlot = slotCheck?.find(slot => 
+          slot.start_time === sessionTimeFormatted || 
+          slot.start_time.substring(0, 5) === selectedPeerTime
+        );
+
+        if (!availableSlot) {
+          Alert.alert(
+            'Slot No Longer Available',
+            'This time slot has just been booked by another student. Please select a different time slot.',
+            [{ text: 'OK' }]
+          );
+          // Refresh the slots
+          await loadAvailablePeerTimeSlots(peerListener.registration_number, selectedPeerDate);
+          return;
+        }
+
         // Save to Supabase book_request table
         const { data: supabaseData, error: supabaseError } = await supabase
           .from('book_request')
@@ -840,6 +927,11 @@ export default function StudentCalm() {
         await loadBookedSessions();
         await loadSessionHistory();
 
+        // Refresh the peer time slots to show updated availability
+        if (selectedPeerDate && peerListener?.registration_number) {
+          await loadAvailablePeerTimeSlots(peerListener.registration_number, selectedPeerDate);
+        }
+
         // Reset selections and close modal
         setSelectedPeerDate(null);
         setSelectedPeerTime(null);
@@ -871,7 +963,7 @@ export default function StudentCalm() {
   // Add real-time subscription for booked sessions
   useEffect(() => {
     // Set up real-time subscription for book_request table
-    const subscription = supabase
+    const bookRequestSubscription = supabase
       .channel('book_request_changes')
       .on(
         'postgres_changes',
@@ -883,35 +975,105 @@ export default function StudentCalm() {
         (payload) => {
           // Refresh booked sessions when the table changes
           loadBookedSessions();
+          loadSessionHistory();
+        }
+      )
+      .subscribe();
+
+    // Set up real-time subscription for expert_schedule table (psychologist slots)
+    const expertScheduleSubscription = supabase
+      .channel('expert_schedule_changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*', // Listen to all changes (INSERT, UPDATE, DELETE)
+          schema: 'public',
+          table: 'expert_schedule'
+        },
+        (payload) => {
+          console.log('Expert schedule changed:', payload);
+          // Refresh expert time slots if a psychologist is selected
+          if (selectedPsychologist && selectedDate) {
+            const expert = experts?.find(e => (e.registration_number || e.id) === selectedPsychologist);
+            if (expert?.registration_number || selectedPsychologist) {
+              loadAvailableTimeSlots(expert?.registration_number || selectedPsychologist, selectedDate);
+            }
+          }
+        }
+      )
+      .subscribe();
+
+    // Set up real-time subscription for student_schedule table (peer listener slots)
+    const studentScheduleSubscription = supabase
+      .channel('student_schedule_changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*', // Listen to all changes (INSERT, UPDATE, DELETE)
+          schema: 'public',
+          table: 'student_schedule'
+        },
+        (payload) => {
+          console.log('Student schedule changed:', payload);
+          // Refresh peer time slots if a peer listener is selected
+          if (selectedPeerListener && selectedPeerDate) {
+            const peerListener = peerListeners?.find(p => String(p.registration_number) === selectedPeerListener);
+            if (peerListener?.registration_number) {
+              loadAvailablePeerTimeSlots(peerListener.registration_number, selectedPeerDate);
+            }
+          }
         }
       )
       .subscribe();
 
     return () => {
-      supabase.removeChannel(subscription);
+      supabase.removeChannel(bookRequestSubscription);
+      supabase.removeChannel(expertScheduleSubscription);
+      supabase.removeChannel(studentScheduleSubscription);
     };
-  }, []);
+  }, [selectedPsychologist, selectedDate, experts, selectedPeerListener, selectedPeerDate, peerListeners]);
 
-  // Add this component to show session availability legend
-  const SessionAvailabilityLegend = () => (
-    <View style={styles.legendContainer}>
-      <Text style={styles.legendTitle}>Session Availability:</Text>
-      <View style={styles.legendItems}>
-        <View style={styles.legendItem}>
-          <View style={[styles.legendDot, { backgroundColor: '#4A148C' }]} />
-          <Text style={styles.legendText}>Available</Text>
-        </View>
-        <View style={styles.legendItem}>
-          <View style={[styles.legendDot, { backgroundColor: '#8E24AA' }]} />
-          <Text style={styles.legendText}>Selected</Text>
-        </View>
-        <View style={styles.legendItem}>
-          <View style={[styles.legendDot, { backgroundColor: '#CE93D8' }]} />
-          <Text style={styles.legendText}>Booked</Text>
-        </View>
-      </View>
-    </View>
-  );
+  // Periodic refresh of peer listener slots when modal is open
+  useEffect(() => {
+    if (!showPeerListenerModal || !selectedPeerListener || !selectedPeerDate) {
+      return;
+    }
+
+    // Refresh slots every 10 seconds while modal is open with date selected
+    const refreshInterval = setInterval(() => {
+      const peerListener = peerListeners?.find(p => String(p.registration_number) === selectedPeerListener);
+      if (peerListener?.registration_number) {
+        console.log('Periodic refresh of peer listener slots');
+        loadAvailablePeerTimeSlots(peerListener.registration_number, selectedPeerDate);
+      }
+    }, 10000); // 10 seconds
+
+    return () => {
+      clearInterval(refreshInterval);
+    };
+  }, [showPeerListenerModal, selectedPeerListener, selectedPeerDate, peerListeners]);
+
+  // Periodic refresh of expert slots when modal is open
+  useEffect(() => {
+    if (!showPsychologistModal || !selectedPsychologist || !selectedDate) {
+      return;
+    }
+
+    // Refresh slots every 10 seconds while modal is open with date selected
+    const refreshInterval = setInterval(() => {
+      const expert = experts?.find(e => (e.registration_number || e.id) === selectedPsychologist);
+      if (expert?.registration_number || selectedPsychologist) {
+        console.log('Periodic refresh of expert slots');
+        loadAvailableTimeSlots(expert?.registration_number || selectedPsychologist, selectedDate);
+      }
+    }, 10000); // 10 seconds
+
+    return () => {
+      clearInterval(refreshInterval);
+    };
+  }, [showPsychologistModal, selectedPsychologist, selectedDate, experts]);
+
+
 
 
   return (
@@ -1190,25 +1352,6 @@ export default function StudentCalm() {
                     </View>
                   ) : (
                     <>
-                      {/* Legend */}
-                      <View style={styles.legendContainer}>
-                        <Text style={styles.legendTitle}>Status Legend:</Text>
-                        <View style={styles.legendRow}>
-                          <View style={styles.legendItem}>
-                            <View style={[styles.statusDot, { backgroundColor: '#4caf50' }]} />
-                            <Text style={styles.legendText}>Available</Text>
-                          </View>
-                          <View style={styles.legendItem}>
-                            <View style={[styles.statusDot, { backgroundColor: '#2196f3' }]} />
-                            <Text style={styles.legendText}>Selected</Text>
-                          </View>
-                          <View style={styles.legendItem}>
-                            <View style={[styles.statusDot, styles.bookedStatusDot, { backgroundColor: '#f44336' }]} />
-                            <Text style={styles.legendText}>Booked</Text>
-                          </View>
-                        </View>
-                      </View>
-
                       <View style={styles.timeSlotsContainer}>
                         {availableTimeSlots.map((slot) => {
                           // Format time from database (HH:MM:SS to HH:MM AM/PM)
@@ -1260,9 +1403,6 @@ export default function StudentCalm() {
                                   !isAvailable && styles.bookedStatusDot,
                                   { backgroundColor: !isAvailable ? '#f44336' : (isSelected ? '#2196f3' : '#4caf50') }
                                 ]} />
-                                {!isAvailable && (
-                                  <Text style={styles.bookedIndicatorText}>❌</Text>
-                                )}
                               </View>
                             </TouchableOpacity>
                           );
@@ -1283,10 +1423,7 @@ export default function StudentCalm() {
                 </TouchableOpacity>
               )}
 
-              {/* Session Availability Legend */}
-              {selectedPsychologist && (
-                <SessionAvailabilityLegend />
-              )}
+
             </ScrollView>
           </View>
         </View>
@@ -1338,7 +1475,13 @@ export default function StudentCalm() {
                       styles.psychologistCard,
                       selectedPeerListener === String(peerListener.registration_number) && styles.selectedPsychologistCard
                     ]}
-                    onPress={() => setSelectedPeerListener(String(peerListener.registration_number))}
+                    onPress={() => {
+                      setSelectedPeerListener(String(peerListener.registration_number));
+                      // Reset date and time slots when changing peer listener
+                      setSelectedPeerDate(null);
+                      setSelectedPeerTime(null);
+                      setAvailablePeerTimeSlots([]);
+                    }}
                   >
                     <View style={styles.psychologistInfo}>
                       <View style={styles.nameAndChatContainer}>
@@ -1454,9 +1597,6 @@ export default function StudentCalm() {
                                   !isAvailable && styles.bookedStatusDot,
                                   { backgroundColor: !isAvailable ? '#f44336' : (isSelected ? '#2196f3' : '#4caf50') }
                                 ]} />
-                                {!isAvailable && (
-                                  <Text style={styles.bookedIndicatorText}>❌</Text>
-                                )}
                               </View>
                             </TouchableOpacity>
                           );
@@ -1477,10 +1617,7 @@ export default function StudentCalm() {
                 </TouchableOpacity>
               )}
 
-              {/* Session Availability Legend */}
-              {selectedPeerListener && (
-                <SessionAvailabilityLegend />
-              )}
+
             </ScrollView>
           </View>
         </View>
@@ -1770,16 +1907,18 @@ const styles = StyleSheet.create({
   // Calendar styles
   calendarContainer: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
+    flexWrap: 'nowrap',
     justifyContent: 'space-between',
     marginBottom: 20,
+    gap: 4,
   },
   dateButton: {
     backgroundColor: Colors.white,
     borderRadius: 10,
-    padding: 10,
+    padding: 8,
     alignItems: 'center',
-    width: '13%',
+    flex: 1,
+    minWidth: 0,
     marginBottom: 5,
     borderWidth: 2,
     borderColor: 'transparent',
@@ -1789,14 +1928,16 @@ const styles = StyleSheet.create({
     borderColor: Colors.primary,
   },
   dayName: {
-    fontSize: 12,
+    fontSize: 10,
     color: Colors.textSecondary,
     fontWeight: 'bold',
+    textAlign: 'center',
   },
   dateText: {
-    fontSize: 14,
+    fontSize: 12,
     color: Colors.text,
     marginTop: 2,
+    textAlign: 'center',
   },
   selectedDateText: {
     color: Colors.white,
@@ -1862,12 +2003,6 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: '#fff',
   },
-  bookedIndicatorText: {
-    position: 'absolute',
-    top: 2,
-    right: 2,
-    fontSize: 10,
-  },
   // Book button
   bookButton: {
     backgroundColor: Colors.primary,
@@ -1886,45 +2021,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: 'bold',
   },
-  // Legend styles
-  legendContainer: {
-    backgroundColor: '#f1f8e9',
-    borderRadius: 10,
-    padding: 15,
-    marginBottom: 15,
-    borderWidth: 1,
-    borderColor: '#c8e6c9',
-  },
-  legendTitle: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: Colors.text,
-    marginBottom: 10,
-  },
-  legendRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    alignItems: 'center',
-  },
-  legendItems: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-  },
-  legendItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginRight: 15,
-  },
-  legendDot: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    marginRight: 5,
-  },
-  legendText: {
-    fontSize: 14,
-    color: Colors.text,
-  },
+
   modalSubtitle: {
     fontSize: 16,
     fontWeight: 'bold',

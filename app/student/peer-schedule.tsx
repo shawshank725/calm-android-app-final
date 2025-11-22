@@ -19,12 +19,12 @@ interface TimeSlot {
 }
 
 const DEFAULT_SLOTS = [
-  { start: '09:00', end: '09:50' },
-  { start: '10:00', end: '10:50' },
-  { start: '11:00', end: '11:50' },
-  { start: '12:00', end: '12:50' },
-  { start: '14:00', end: '14:50' },
-  { start: '15:00', end: '15:50' },
+  { start: '09:00:00', end: '09:50:00' },
+  { start: '10:00:00', end: '10:50:00' },
+  { start: '11:00:00', end: '11:50:00' },
+  { start: '12:00:00', end: '12:50:00' },
+  { start: '14:00:00', end: '14:50:00' },
+  { start: '15:00:00', end: '15:50:00' },
 ];
 
 const generateDefaultSlots = (date: Date): TimeSlot[] => {
@@ -64,9 +64,90 @@ export default function PeerSchedule() {
   });
 
 
+  // Function to automatically generate default slots for all dates in the month
+  const autoGenerateMonthlySlots = async () => {
+    if (!profile) return;
+
+    try {
+      const startOfMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 1);
+      const endOfMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 0);
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+
+      // Get all existing slots for the month
+      const { data: existingSlots, error: fetchError } = await supabase
+        .from('student_schedule')
+        .select('date, start_time, end_time')
+        .eq('peer_registration_number', profile.registration_number)
+        .gte('date', formatDateToLocalString(startOfMonth))
+        .lte('date', formatDateToLocalString(endOfMonth));
+
+      if (fetchError) {
+        console.error('Error fetching existing slots:', fetchError);
+        return;
+      }
+
+      // Create a Set of date+time combinations that already exist
+      const existingSlotKeys = new Set(
+        existingSlots?.map(slot => `${slot.date}_${slot.start_time}_${slot.end_time}`) || []
+      );
+
+      // Generate slots for all dates in the month that don't have slots yet
+      const slotsToInsert: any[] = [];
+      
+      for (let day = 1; day <= endOfMonth.getDate(); day++) {
+        const currentDate = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), day);
+        const dateString = formatDateToLocalString(currentDate);
+
+        // Skip if date is in the past
+        if (currentDate < today) {
+          continue;
+        }
+
+        // Add default slots for this date if they don't exist
+        DEFAULT_SLOTS.forEach(slot => {
+          const slotKey = `${dateString}_${slot.start}_${slot.end}`;
+          
+          // Only add if this exact slot doesn't exist
+          if (!existingSlotKeys.has(slotKey)) {
+            slotsToInsert.push({
+              peer_registration_number: profile.registration_number,
+              peer_name: profile.name,
+              peer_id: profile.id,
+              date: dateString,
+              start_time: slot.start,
+              end_time: slot.end,
+              is_available: true
+            });
+          }
+        });
+      }
+
+      // Insert all slots at once if there are any
+      if (slotsToInsert.length > 0) {
+        console.log(`📅 Auto-generating ${slotsToInsert.length} peer slots for the month...`);
+        
+        const { error: insertError } = await supabase
+          .from('student_schedule')
+          .insert(slotsToInsert);
+
+        if (insertError) {
+          console.error('Error auto-generating peer slots:', insertError);
+        } else {
+          console.log('✅ Successfully auto-generated peer monthly slots');
+          await loadAllSchedules();
+        }
+      }
+    } catch (error) {
+      console.error('Error in autoGenerateMonthlySlots:', error);
+    }
+  };
+
   useEffect(() => {
     if (profile) {
       loadAllSchedules();
+      // Automatically generate default slots for all dates in the month
+      autoGenerateMonthlySlots();
     }
   }, [currentMonth, profile]);
 
@@ -128,12 +209,6 @@ export default function PeerSchedule() {
   const handleDatePress = async (date: Date) => {
     setSelectedDate(date);
     await loadSlotsForDate(date);
-
-    // Auto-add default slots if none exist (like expert schedule)
-    const dateString = formatDateToLocalString(date);
-    if (!allSchedules.has(dateString) || allSchedules.get(dateString)?.length === 0) {
-      handleAddDefaultSlots();
-    }
   };
 
   const handleAddCustomSlot = async () => {
@@ -146,11 +221,24 @@ export default function PeerSchedule() {
       return;
     }
 
-    const startTime = `${startHour.padStart(2, '0')}:${startMinute.padStart(2, '0')}`;
-    const endTime = `${endHour.padStart(2, '0')}:${endMinute.padStart(2, '0')}`;
+    const startTime = `${startHour.padStart(2, '0')}:${startMinute.padStart(2, '0')}:00`;
+    const endTime = `${endHour.padStart(2, '0')}:${endMinute.padStart(2, '0')}:00`;
 
     if (startTime >= endTime) {
       Alert.alert('Error', 'End time must be after start time.');
+      return;
+    }
+
+    // Check for duplicate slots (including date)
+    const dateString = formatDateToLocalString(selectedDate);
+    const isDuplicate = slots.some(slot => 
+      slot.date === dateString &&
+      slot.start_time === startTime && 
+      slot.end_time === endTime
+    );
+    
+    if (isDuplicate) {
+      Alert.alert('Duplicate Slot', 'This exact time slot already exists for this date.');
       return;
     }
 
@@ -209,12 +297,29 @@ export default function PeerSchedule() {
           onPress: async () => {
             setLoading(true);
             try {
-              const slotsToAdd = generateDefaultSlots(selectedDate).map(slot => ({
-                ...slot,
-                peer_registration_number: profile.registration_number,
-                peer_name: profile.name,
-                peer_id: profile.id,
-              }));
+              const dateString = formatDateToLocalString(selectedDate);
+              
+              // Filter out slots that already exist (including date in the check)
+              const existingSlotKeys = new Set(
+                slots
+                  .filter(slot => slot.date === dateString)
+                  .map(slot => `${slot.start_time}_${slot.end_time}`)
+              );
+              
+              const slotsToAdd = generateDefaultSlots(selectedDate)
+                .filter(slot => !existingSlotKeys.has(`${slot.start_time}_${slot.end_time}`))
+                .map(slot => ({
+                  ...slot,
+                  peer_registration_number: profile.registration_number,
+                  peer_name: profile.name,
+                  peer_id: profile.id,
+                }));
+
+              if (slotsToAdd.length === 0) {
+                Alert.alert('Info', 'All default slots already exist for this date.');
+                setLoading(false);
+                return;
+              }
 
               const { error } = await supabase
                 .from('student_schedule')
@@ -222,7 +327,7 @@ export default function PeerSchedule() {
 
               if (error) throw error;
 
-              Alert.alert('Success', 'Default slots added successfully!');
+              Alert.alert('Success', `${slotsToAdd.length} default slot(s) added successfully!`);
               await loadSlotsForDate(selectedDate);
               await loadAllSchedules();
             } catch (error) {

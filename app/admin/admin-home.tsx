@@ -30,6 +30,8 @@ export default function AdminHome() {
   const [showUserTypeModal, setShowUserTypeModal] = useState(false);
   const [selectedUser, setSelectedUser] = useState<any>(null);
   const [changingType, setChangingType] = useState(false);
+  const [editingPost, setEditingPost] = useState<any>(null);
+  const [editModalVisible, setEditModalVisible] = useState(false);
   const router = useRouter();
 
   // Check for OTA updates on app launch
@@ -350,23 +352,95 @@ export default function AdminHome() {
           style: 'destructive',
           onPress: async () => {
             try {
-              const { error } = await supabase
+              console.log('🗑️ Attempting to delete post with ID:', post.id);
+              
+              const { data, error } = await supabase
                 .from('community_post')
                 .delete()
-                .eq('id', post.id);
+                .eq('id', post.id)
+                .select();
 
-              if (error) throw error;
+              if (error) {
+                console.error('❌ Delete error:', error);
+                Alert.alert(
+                  'Delete Failed', 
+                  `Error: ${error.message}\n\nThis might be a permissions issue. Please check:\n1. Admin has delete permissions\n2. Row Level Security policies allow deletion`
+                );
+                return;
+              }
 
+              console.log('✅ Post deleted successfully:', data);
               Alert.alert('Success', 'Post deleted successfully');
               fetchPosts();
-            } catch (error) {
-              console.error('Error deleting post:', error);
-              Alert.alert('Error', 'Failed to delete post');
+            } catch (error: any) {
+              console.error('❌ Unexpected error deleting post:', error);
+              Alert.alert('Error', `Failed to delete post: ${error.message || 'Unknown error'}`);
             }
           }
         }
       ]
     );
+  };
+
+  const updatePost = async () => {
+    if (!editingPost) return;
+    
+    if (!postText.trim() && !selectedMedia) {
+      Alert.alert('Empty Post', 'Please add some text or media');
+      return;
+    }
+
+    setIsPosting(true);
+    try {
+      console.log('📝 Updating post with ID:', editingPost.id);
+      
+      let mediaUrl = editingPost.media_url;
+      let mediaType = editingPost.media_type;
+
+      // Upload new media if changed
+      if (selectedMedia && selectedMedia.uri !== editingPost.media_url) {
+        console.log('📤 Uploading new media...');
+        const uploadedUrl = await uploadMediaToSupabase(selectedMedia.uri, selectedMedia.type);
+        if (uploadedUrl) {
+          mediaUrl = uploadedUrl;
+          mediaType = selectedMedia.type;
+        }
+      } else if (!selectedMedia) {
+        // Media was removed
+        mediaUrl = null;
+        mediaType = null;
+      }
+
+      const { data, error } = await supabase
+        .from('community_post')
+        .update({
+          content: postText.trim(),
+          media_url: mediaUrl,
+          media_type: mediaType,
+        })
+        .eq('id', editingPost.id)
+        .select();
+
+      if (error) {
+        console.error('❌ Update error:', error);
+        Alert.alert('Update Failed', `Error: ${error.message}`);
+        return;
+      }
+
+      console.log('✅ Post updated successfully:', data);
+      Alert.alert('Success', 'Post updated successfully');
+      
+      setEditModalVisible(false);
+      setPostText('');
+      setSelectedMedia(null);
+      setEditingPost(null);
+      fetchPosts();
+    } catch (error: any) {
+      console.error('❌ Error updating post:', error);
+      Alert.alert('Error', `Failed to update post: ${error.message || 'Unknown error'}`);
+    } finally {
+      setIsPosting(false);
+    }
   };
 
   const openComments = async (post: any) => {
@@ -999,16 +1073,6 @@ export default function AdminHome() {
                     {formatRelativeTime(item.created_at)}
                   </Text>
                 </View>
-                <TouchableOpacity
-                  style={{
-                    padding: 8,
-                    borderRadius: 20,
-                    backgroundColor: '#e74c3c',
-                  }}
-                  onPress={() => deletePost(item)}
-                >
-                  <Ionicons name="trash" size={16} color="white" />
-                </TouchableOpacity>
               </View>
 
               {item.content && (
@@ -1201,6 +1265,132 @@ export default function AdminHome() {
                 >
                   <Text style={{ color: '#222', fontWeight: 'bold' }}>
                     {isPosting ? 'Posting...' : 'Post'}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </Modal>
+
+        {/* Edit Post Modal */}
+        <Modal
+          animationType="slide"
+          transparent={true}
+          visible={editModalVisible}
+          onRequestClose={() => setEditModalVisible(false)}
+        >
+          <View style={{
+            flex: 1,
+            justifyContent: 'center',
+            alignItems: 'center',
+            backgroundColor: 'rgba(0,0,0,0.7)',
+          }}>
+            <View style={{
+              backgroundColor: '#222',
+              borderRadius: 20,
+              padding: 20,
+              width: '90%',
+              maxHeight: '80%',
+            }}>
+              <Text style={{
+                fontSize: 18,
+                fontWeight: 'bold',
+                color: '#FFB347',
+                marginBottom: 20,
+                textAlign: 'center',
+              }}>
+                Edit Post
+              </Text>
+              
+              <TextInput
+                style={{
+                  borderWidth: 1,
+                  borderColor: '#444',
+                  borderRadius: 10,
+                  padding: 15,
+                  fontSize: 16,
+                  color: 'white',
+                  minHeight: 100,
+                  textAlignVertical: 'top',
+                  marginBottom: 20,
+                  backgroundColor: '#111',
+                }}
+                placeholder="Share your thoughts..."
+                placeholderTextColor="#666"
+                multiline
+                value={postText}
+                onChangeText={setPostText}
+              />
+              
+              {selectedMedia && (
+                <View style={{
+                  marginBottom: 20,
+                  padding: 10,
+                  backgroundColor: '#111',
+                  borderRadius: 10,
+                  alignItems: 'center',
+                }}>
+                  <Text style={{ color: 'white', fontSize: 14, marginBottom: 10 }}>
+                    Selected {selectedMedia.type}:
+                  </Text>
+                  <Text style={{ color: '#888', fontSize: 12 }}>
+                    {selectedMedia.uri.split('/').pop()}
+                  </Text>
+                  <TouchableOpacity
+                    style={{ marginTop: 10, padding: 5 }}
+                    onPress={() => setSelectedMedia(null)}
+                  >
+                    <Ionicons name="close" size={20} color="#e74c3c" />
+                  </TouchableOpacity>
+                </View>
+              )}
+              
+              <TouchableOpacity
+                style={{
+                  alignItems: 'center',
+                  padding: 15,
+                  backgroundColor: '#111',
+                  borderRadius: 15,
+                  marginBottom: 20,
+                }}
+                onPress={pickMedia}
+              >
+                <Ionicons name="images" size={24} color="#FFB347" />
+                <Text style={{ color: 'white', marginTop: 5 }}>Change Photo/Video</Text>
+              </TouchableOpacity>
+              
+              <View style={{ flexDirection: 'row', gap: 10 }}>
+                <TouchableOpacity
+                  style={{
+                    flex: 1,
+                    backgroundColor: '#444',
+                    padding: 15,
+                    borderRadius: 10,
+                    alignItems: 'center',
+                  }}
+                  onPress={() => {
+                    setEditModalVisible(false);
+                    setPostText('');
+                    setSelectedMedia(null);
+                    setEditingPost(null);
+                  }}
+                >
+                  <Text style={{ color: 'white', fontWeight: 'bold' }}>Cancel</Text>
+                </TouchableOpacity>
+                
+                <TouchableOpacity
+                  style={{
+                    flex: 1,
+                    backgroundColor: isPosting ? '#666' : '#FFB347',
+                    padding: 15,
+                    borderRadius: 10,
+                    alignItems: 'center',
+                  }}
+                  onPress={updatePost}
+                  disabled={isPosting}
+                >
+                  <Text style={{ color: '#222', fontWeight: 'bold' }}>
+                    {isPosting ? 'Updating...' : 'Update'}
                   </Text>
                 </TouchableOpacity>
               </View>
