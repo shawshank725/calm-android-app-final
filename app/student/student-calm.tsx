@@ -1081,10 +1081,7 @@ export default function StudentCalm() {
                           <Text style={styles.chatButtonText}>💬 Chat</Text>
                         </TouchableOpacity>
                       </View>
-                      <Text style={styles.psychologistSpecialization}>{expert.specialization || 'Mental Health Expert'}</Text>
-                      <Text style={styles.psychologistDetails}>
-                        Experience: {expert.experience || '5+ years'} | Rating: ⭐ {expert.rating || '4.8'}
-                      </Text>
+                      <Text style={styles.psychologistSpecialization}>{expert.specialization || 'Health Expert'}</Text>
                     </View>
                     {selectedPsychologist === (expert.registration_number || expert.id) && (
                       <Text style={styles.selectedIcon}>✓</Text>
@@ -1359,9 +1356,6 @@ export default function StudentCalm() {
                         </TouchableOpacity>
                       </View>
                       <Text style={styles.psychologistSpecialization}>{peerListener.course || 'Peer Support'}</Text>
-                      <Text style={styles.psychologistDetails}>
-                        Year: {peerListener.year || 'N/A'} | Rating: ⭐ {peerListener.rating || '4.8'}
-                      </Text>
                     </View>
                     {selectedPeerListener === String(peerListener.registration_number) && (
                       <Text style={styles.selectedIcon}>✓</Text>
@@ -1692,10 +1686,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: Colors.textSecondary,
     marginBottom: 4,
-  },
-  psychologistDetails: {
-    fontSize: 12,
-    color: Colors.textSecondary,
   },
   expertId: {
     fontSize: 14,

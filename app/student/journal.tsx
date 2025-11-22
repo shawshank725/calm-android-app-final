@@ -2,6 +2,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import { Alert, Modal, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import * as Clipboard from 'expo-clipboard';
 
 type GratitudeEntry = { date: string; items: string[] };
 
@@ -67,11 +68,15 @@ export default function Journal() {
 
       const content = `My Journal - ${currentDate}\n\n${journalText}${gratitudeText}`;
 
-      Alert.alert('Journal Export', `${content.substring(0, 200)}...`, [
-        { text: 'Copy to Clipboard', onPress: () => {
-          Alert.alert('Success', 'Journal content ready for sharing');
-        }},
-        { text: 'OK' }
+      Alert.alert('Journal Export', 'Choose an option:', [
+        { 
+          text: 'Copy to Clipboard', 
+          onPress: async () => {
+            await Clipboard.setStringAsync(content);
+            Alert.alert('Success', 'Journal copied to clipboard! You can now paste it anywhere.');
+          }
+        },
+        { text: 'Cancel', style: 'cancel' }
       ]);
     } catch (error) {
       Alert.alert('Error', 'Failed to export journal');

@@ -11,7 +11,7 @@ import { profilePics } from '@/constants/ProfilePhotos';
 console.log('AdminHome component loaded');
 
 export default function AdminHome() {
-  const [activeTab, setActiveTab] = useState<'home' | 'settings' | 'BuddyConnect' | 'ai'>('home');
+  const [activeTab, setActiveTab] = useState<'home' | 'settings' | 'BuddyConnect'>('home');
   const [users, setUsers] = useState<any[]>([]);
   const [userTypeFilter, setUserTypeFilter] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
@@ -65,13 +65,6 @@ export default function AdminHome() {
     }
     checkForUpdates();
   }, []);
-
-  // Redirect to admin AI page when AI tab is selected
-  useEffect(() => {
-    if (activeTab === 'ai') {
-      router.push('./admin-ai');
-    }
-  }, [activeTab]);
 
   // Redirect to admin settings page when settings tab is selected
   useEffect(() => {
@@ -1304,13 +1297,6 @@ export default function AdminHome() {
         </Modal>
       </View>
     );
-  } else if (activeTab === 'ai') {
-    // Show placeholder while redirecting
-    Content = (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-        <Text style={{ color: '#FFB347', fontSize: 24, fontWeight: 'bold' }}>Redirecting to Admin AI...</Text>
-      </View>
-    );
   }
 
   return (
@@ -1325,13 +1311,6 @@ export default function AdminHome() {
         >
           <Text style={[styles.tabIcon, activeTab === 'home' && styles.activeTabIcon]}>🏠</Text>
           <Text style={[styles.tabLabel, activeTab === 'home' && styles.activeTabLabel]}>Home</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.tabItem, activeTab === 'ai' && styles.activeTabItem]}
-          onPress={() => setActiveTab('ai')}
-        >
-          <Text style={[styles.tabIcon, activeTab === 'ai' && styles.activeTabIcon]}>🤖</Text>
-          <Text style={[styles.tabLabel, activeTab === 'ai' && styles.activeTabLabel]}>AI</Text>
         </TouchableOpacity>
         <TouchableOpacity
           style={[styles.tabItem, activeTab === 'settings' && styles.activeTabItem]}

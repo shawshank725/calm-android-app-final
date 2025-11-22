@@ -1331,14 +1331,6 @@ export default function StudentHome() {
               </View>
             )}
           </TouchableOpacity>
-
-          {/* AI Button */}
-          <TouchableOpacity
-            style={{ width: 40, height: 40, borderRadius: 22, backgroundColor: Colors.white, justifyContent: 'center', alignItems: 'center', elevation: 8, shadowColor: Colors.shadow, shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.22, shadowRadius: 5, borderWidth: 2, borderColor: Colors.primary }}
-            onPress={() => router.push('./ai')}
-          >
-            <Image source={require('@/assets/images/chat bot.png')} style={{ width: 30, height: 30, resizeMode: 'contain' }} />
-          </TouchableOpacity>
         </View>
       )}
 

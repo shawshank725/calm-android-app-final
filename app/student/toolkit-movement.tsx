@@ -1,4 +1,4 @@
-import { VideoView, useVideoPlayer } from 'expo-video';
+import React from 'react';
 import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { Alert, Modal, ScrollView, Text, TouchableOpacity, View } from 'react-native';
@@ -15,16 +15,7 @@ export default function ToolkitMovement() {
   // Dance and Movement Art State
   const [showDanceArt, setShowDanceArt] = useState(false);
 
-  // Create video players for each video
-  const video1Player = useVideoPlayer(require('@/assets/videos/video1.mp4'), player => {
-    player.loop = false;
-  });
-  const video2Player = useVideoPlayer(require('@/assets/videos/video2.mp4'), player => {
-    player.loop = false;
-  });
-  const video3Player = useVideoPlayer(require('@/assets/videos/video3.mp4'), player => {
-    player.loop = false;
-  });
+  // Videos removed per request — showing instructions instead
 
   // Shake it out steps
   const shakeSteps = [
@@ -153,37 +144,19 @@ export default function ToolkitMovement() {
             <Text style={{ fontSize: 24, fontWeight: 'bold', textAlign: 'center', marginBottom: 20, color: '#2c3e50' }}>Dance and Movement Art</Text>
 
             <ScrollView style={{ maxHeight: 400 }}>
-              <View style={{ marginBottom: 20 }}>
-                <Text style={{ fontSize: 18, fontWeight: 'bold', marginBottom: 10, color: '#9b59b6' }}>Video 1</Text>
-                <VideoView
-                  style={{ width: '100%', height: 200, borderRadius: 10 }}
-                  player={video1Player}
-                  allowsFullscreen
-                  allowsPictureInPicture
-                  contentFit="contain"
-                />
+              <View style={{ marginBottom: 20, backgroundColor: '#fff', padding: 16, borderRadius: 10 }}>
+                <Text style={{ fontSize: 18, fontWeight: 'bold', marginBottom: 8, color: '#9b59b6' }}>Movement Exercise 1</Text>
+                <Text style={{ color: '#333' }}>Guided movement prompt: Stand up, shake out your arms and legs, and move to your breath for 1 minute. Follow the steps in "Shake It Out" for structure.</Text>
               </View>
 
-              <View style={{ marginBottom: 20 }}>
-                <Text style={{ fontSize: 18, fontWeight: 'bold', marginBottom: 10, color: '#9b59b6' }}>Video 2</Text>
-                <VideoView
-                  style={{ width: '100%', height: 200, borderRadius: 10 }}
-                  player={video2Player}
-                  allowsFullscreen
-                  allowsPictureInPicture
-                  contentFit="contain"
-                />
+              <View style={{ marginBottom: 20, backgroundColor: '#fff', padding: 16, borderRadius: 10 }}>
+                <Text style={{ fontSize: 18, fontWeight: 'bold', marginBottom: 8, color: '#9b59b6' }}>Movement Exercise 2</Text>
+                <Text style={{ color: '#333' }}>Creative movement prompt: Put on your favorite song and move freely for 2–3 minutes. Focus on how your body feels as you explore different shapes and levels.</Text>
               </View>
 
-              <View style={{ marginBottom: 20 }}>
-                <Text style={{ fontSize: 18, fontWeight: 'bold', marginBottom: 10, color: '#9b59b6' }}>Video 3</Text>
-                <VideoView
-                  style={{ width: '100%', height: 200, borderRadius: 10 }}
-                  player={video3Player}
-                  allowsFullscreen
-                  allowsPictureInPicture
-                  contentFit="contain"
-                />
+              <View style={{ marginBottom: 20, backgroundColor: '#fff', padding: 16, borderRadius: 10 }}>
+                <Text style={{ fontSize: 18, fontWeight: 'bold', marginBottom: 8, color: '#9b59b6' }}>Movement Exercise 3</Text>
+                <Text style={{ color: '#333' }}>Cool down: Slow your movements, take three deep breaths, and notice any changes in your energy or mood.</Text>
               </View>
             </ScrollView>
 

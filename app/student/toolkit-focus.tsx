@@ -38,17 +38,17 @@ export default function ToolkitFocus() {
 
   // Scanner challenges
   const scannerTypes = [
-    { challenge: "Name all the RED things you see", color: "#e74c3c", icon: "🔴" },
-    { challenge: "Name all the BLUE things you see", color: "#3498db", icon: "🔵" },
-    { challenge: "Name all the GREEN things you see", color: "#2ecc71", icon: "🟢" },
-    { challenge: "Name all the ROUND things you see", color: "#f39c12", icon: "⭕" },
-    { challenge: "Name all the SQUARE things you see", color: "#9b59b6", icon: "⬜" },
-    { challenge: "Name all the SOFT things you see", color: "#e67e22", icon: "🧸" },
-    { challenge: "Name all the SHINY things you see", color: "#f1c40f", icon: "✨" },
-    { challenge: "Name all the WOODEN things you see", color: "#8b4513", icon: "🪵" }
+    { challenge: "Name all the RED things around you", color: "#e74c3c", icon: "🔴" },
+    { challenge: "Name all the BLUE things around you", color: "#3498db", icon: "🔵" },
+    { challenge: "Name all the GREEN things around you", color: "#2ecc71", icon: "🟢" },
+    { challenge: "Name all the ROUND things around you", color: "#f39c12", icon: "⭕" },
+    { challenge: "Name all the SQUARE things around you", color: "#9b59b6", icon: "⬜" },
+    { challenge: "Name all the SOFT things around you", color: "#e67e22", icon: "🧸" },
+    { challenge: "Name all the SHINY things around you", color: "#f1c40f", icon: "✨" },
+    { challenge: "Name all the WOODEN things around you", color: "#8b4513", icon: "🪵" }
   ];
 
-  // Cognitive reframe prompts
+  // Flip the Script prompts
   const reframePrompts = [
   "What's one thing I can control right now?",
     "What's going well in my life today?",
@@ -60,7 +60,7 @@ export default function ToolkitFocus() {
     "What strengths do I have to handle this?"
   ];
 
-  // Concrete cognitive reframing examples (Q = negative thought, A = constructive reframe)
+  // Concrete flip the script examples (Q = negative thought, A = constructive reframe)
   const reframingExamples: { q: string; a: string }[] = [
     { q: "If I mess up one line, I’ll look like an idiot.", a: "It’s okay to stumble; the audience cares about the message, not flawless delivery." },
     { q: "This revision means I'm incompetent.", a: "This is specific feedback, offering me a clear opportunity to learn and improve a skill." },
@@ -184,16 +184,16 @@ export default function ToolkitFocus() {
             style={{ backgroundColor: '#e17055', borderRadius: 20, padding: 25, marginBottom: 20, elevation: 5 }}
             onPress={() => setShowScanner(true)}
           >
-            <Text style={{ color: '#fff', fontSize: 22, fontWeight: 'bold', textAlign: 'center', marginBottom: 8 }}>👀 "Name All..." Scanner</Text>
+            <Text style={{ color: '#fff', fontSize: 22, fontWeight: 'bold', textAlign: 'center', marginBottom: 8 }}>👀 Name All Things</Text>
             <Text style={{ color: '#fff', fontSize: 14, textAlign: 'center' }}>Visual challenges with 1-minute timer</Text>
           </TouchableOpacity>
 
-          {/* Cognitive Reframe */}
+          {/* Flip the Script */}
           <TouchableOpacity
             style={{ backgroundColor: '#0984e3', borderRadius: 20, padding: 25, marginBottom: 20, elevation: 5 }}
             onPress={() => setShowReframe(true)}
           >
-            <Text style={{ color: '#fff', fontSize: 22, fontWeight: 'bold', textAlign: 'center', marginBottom: 8 }}>💭 Cognitive Reframe</Text>
+            <Text style={{ color: '#fff', fontSize: 22, fontWeight: 'bold', textAlign: 'center', marginBottom: 8 }}>💭 Flip the script</Text>
             <Text style={{ color: '#fff', fontSize: 14, textAlign: 'center' }}>Shift perspective with guided prompts</Text>
           </TouchableOpacity>
         </View>
@@ -313,7 +313,7 @@ export default function ToolkitFocus() {
             </TouchableOpacity>
 
             <Text style={{ fontSize: 24, fontWeight: 'bold', textAlign: 'center', marginBottom: 20, color: '#2c3e50' }}>
-              👀 "Name All..." Scanner
+              👀 Name All Things
             </Text>
 
             {/* Challenge Selection */}
@@ -471,7 +471,7 @@ export default function ToolkitFocus() {
         </View>
       </Modal>
 
-      {/* Cognitive Reframe Modal */}
+      {/* Flip the Script Modal */}
       <Modal visible={showReframe} animationType="slide" transparent={true}>
         <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.8)' }}>
           <View style={{ flex: 1, backgroundColor: '#fff', marginTop: 50, borderTopLeftRadius: 20, borderTopRightRadius: 20 }}>
@@ -479,12 +479,12 @@ export default function ToolkitFocus() {
               <TouchableOpacity onPress={() => { setShowReframe(false); resetStates(); }} style={{ alignSelf: 'flex-start', marginBottom: 10 }}>
                 <Text style={{ color: '#fff', fontSize: 16, fontWeight: 'bold' }}>✕ Close</Text>
               </TouchableOpacity>
-              <Text style={{ color: '#fff', fontSize: 24, fontWeight: 'bold', textAlign: 'center' }}>💭 Cognitive Reframing</Text>
+              <Text style={{ color: '#fff', fontSize: 24, fontWeight: 'bold', textAlign: 'center' }}>💭 Flip the Script</Text>
             </View>
 
             {/* Q&A Examples */}
             <ScrollView style={{ flex: 1, padding: 20 }}>
-              <Text style={styles.examplesTitle}>Reframe</Text>
+
               
               {reframingExamples.map((ex, i) => (
                 <View key={i} style={styles.exampleCard}>
@@ -509,19 +509,12 @@ export default function ToolkitFocus() {
 }
 
 const styles = StyleSheet.create({
-  // Cognitive Reframe Examples Styles
+  // Flip the Script Examples Styles
   examplesContainer: {
     marginBottom: 15,
     backgroundColor: '#f8f9fa',
     borderRadius: 12,
     padding: 12,
-  },
-  examplesTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-    marginBottom: 8,
-    color: '#2c3e50',
-    textAlign: 'center',
   },
   examplesScrollView: {
     maxHeight: 280,
