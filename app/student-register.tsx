@@ -8,6 +8,7 @@ import { supabase } from '@/lib/supabase';
 import { FACULTY } from '@/constants/courses';
 import { getAllUsernames, getAllRegistrationNumbers } from "@/api/Profile";
 import Toast from 'react-native-toast-message';
+import DateTimePicker, { DateTimePickerEvent } from "@react-native-community/datetimepicker";
 
 export default function StudentRegister() {
   const router = useRouter();
@@ -22,11 +23,18 @@ export default function StudentRegister() {
   const [passwordVisible, setPasswordVisible] = useState(false);
   const [courseModalVisible, setCourseModalVisible] = useState(false);
   const [loading, setLoading] = useState<boolean>(false);
+  const [dobPickerVisible, setDobPickerVisible] = useState(false);
 
   // Helper function to capitalize first letter of each word
   const capitalizeWords = (text: string) => {
     return text.replace(/\b\w/g, (char) => char.toUpperCase());
   };
+
+  const parseDOB = (dob: string): Date => {
+    const [day, month, year] = dob.split("/").map(Number);
+    return new Date(year, month - 1, day);
+  };
+
 
   // Handler for name input - capitalize first letter of each word
   const handleNameChange = (text: string) => {
@@ -325,7 +333,15 @@ export default function StudentRegister() {
               {/* Date of Birth */}
               <View style={styles.inputWrapper}>
                 <Text style={styles.label}>Date of Birth *</Text>
-                <TextInput style={styles.input} value={dob} onChangeText={setDob} placeholder="DD/MM/YYYY" placeholderTextColor="#a8a8a8" />
+
+                <TouchableOpacity 
+                  style={styles.input}
+                  onPress={() => setDobPickerVisible(true)}
+                >
+                  <Text style={{ fontSize: 16, color: dob ? "#333" : "#a8a8a8" }}>
+                    {dob || "Select your date of birth"}
+                  </Text>
+                </TouchableOpacity>
               </View>
 
               {/* Password */}
@@ -384,6 +400,26 @@ export default function StudentRegister() {
           </View>
         </View>
       </Modal>
+      {dobPickerVisible && (
+        <DateTimePicker
+          value={dob ? parseDOB(dob) : new Date()}
+          mode="date"
+          display="inline"
+          maximumDate={new Date(new Date().setFullYear(new Date().getFullYear()))}
+          minimumDate={new Date(new Date().setFullYear(new Date().getFullYear() - 80))}
+          onChange={(event: DateTimePickerEvent, selectedDate?: Date) => {
+            setDobPickerVisible(false);
+            if (selectedDate) {
+              const d = selectedDate;
+              const formatted = `${String(d.getDate()).padStart(2,"0")}/${String(d.getMonth()+1).padStart(2,"0")}/${d.getFullYear()}`;
+              setDob(formatted);
+            }
+          }}
+        />
+        )
+      }
+
+
     </View>
   );
 }
