@@ -20,7 +20,6 @@ import { formatRelativeTime, uploadMediaToSupabase, pickMediaFromGallery } from 
 import { profilePics } from '@/constants/ProfilePhotos';
 import * as Notifications from 'expo-notifications';
 import {
-  registerForPushNotificationsAsync,
   setupNotificationListeners,
   removeNotificationListeners,
   sendLocalNotification
@@ -212,10 +211,10 @@ export default function ExpertHome() {
 
     const initNotifications = async () => {
       try {
-        console.log('📱 Registering expert for push notifications...');
+        console.log('📱 Registering expert for notifications...');
         // Use session user ID (UUID) instead of registration number
         if (session?.user?.id) {
-          await registerForPushNotificationsAsync(session.user.id);
+          console.log('Expert session available:', session.user.id);
         } else {
           console.log('⚠️ No session user ID available for push notifications');
         }

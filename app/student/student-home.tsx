@@ -9,7 +9,7 @@ import { useProfile } from '@/api/Profile';
 import { useAuth } from '@/providers/AuthProvider';
 import PeerScreen from './peer-screen';
 import { Notification } from '@/types/Notification';
-import { registerForPushNotificationsAsync, setupNotificationListeners, removeNotificationListeners, sendLocalNotification } from '@/lib/notificationService';
+import { setupNotificationListeners, removeNotificationListeners, sendLocalNotification } from '@/lib/notificationService';
 import * as Notifications from 'expo-notifications';
 
 const profilePics = [
@@ -289,7 +289,7 @@ export default function StudentHome() {
 
           // Register for push notifications using session user ID
           if (session?.user?.id) {
-            await registerForPushNotificationsAsync(session.user.id);
+            console.log('Session user ID available for notifications');
           } else {
             console.log('⚠️ No session user ID available for push notifications');
           }

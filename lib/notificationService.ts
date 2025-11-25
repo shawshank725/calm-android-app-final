@@ -46,43 +46,7 @@ export async function registerForPushNotificationsAsync(userId: string): Promise
       projectId: '766744c8-deca-4ae4-b33e-04085a5d31b2', // Updated
     });
     token = pushToken.data;
-
-    // Save token to database
-    if (token && userId) {
-      try {
-        // First, try to get the authenticated user's ID from Supabase session
-        const { data: { user }, error: authError } = await supabase.auth.getUser();
-        
-        if (authError || !user) {
-          console.warn('⚠️ No authenticated user, skipping push token save to database');
-          console.log('📱 Push token obtained locally:', token.substring(0, 20) + '...');
-          return token;
-        }
-
-        // Use the authenticated user's UUID for the push_tokens table
-        const { error } = await supabase
-          .from('push_tokens')
-          .upsert({
-            user_id: user.id, // Use Supabase auth user ID (UUID)
-            push_token: token,
-            platform: Platform.OS,
-          }, {
-            onConflict: 'user_id',
-          });
-
-        if (error) {
-          console.error('⚠️ Error saving push token to database:', error);
-          console.log('📱 Push token still available locally:', token.substring(0, 20) + '...');
-          // Don't throw error - push notifications can still work locally
-        } else {
-          console.log('✅ Push token saved to database successfully');
-        }
-      } catch (dbError) {
-        console.error('⚠️ Database error while saving push token:', dbError);
-        console.log('📱 Push token still available locally');
-        // Continue - local notifications will still work
-      }
-    }
+    console.log('📱 Push token obtained:', token.substring(0, 20) + '...');
 
     // Configure notification channel for Android
     if (Platform.OS === 'android') {
@@ -122,6 +86,7 @@ export async function sendLocalNotification(
 
 /**
  * Send push notification to specific users
+ * Note: Push tokens table removed - this function is disabled
  */
 export async function sendPushNotificationToUsers(
   userIds: string[],
@@ -129,52 +94,13 @@ export async function sendPushNotificationToUsers(
   body: string,
   data?: any
 ) {
-  try {
-    // Get push tokens for the users
-    const { data: tokens, error } = await supabase
-      .from('push_tokens')
-      .select('push_token')
-      .in('user_id', userIds);
-
-    if (error) {
-      console.error('Error fetching push tokens:', error);
-      return;
-    }
-
-    if (!tokens || tokens.length === 0) {
-      console.log('No push tokens found for users');
-      return;
-    }
-
-    // Send push notifications via Expo Push API
-    const messages = tokens.map((tokenData) => ({
-      to: tokenData.push_token,
-      sound: 'default',
-      title,
-      body,
-      data: data || {},
-    }));
-
-    // Send to Expo Push API
-    const response = await fetch('https://exp.host/--/api/v2/push/send', {
-      method: 'POST',
-      headers: {
-        Accept: 'application/json',
-        'Accept-encoding': 'gzip, deflate',
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(messages),
-    });
-
-    const result = await response.json();
-    console.log('✅ Push notifications sent:', result);
-  } catch (error) {
-    console.error('Error sending push notifications:', error);
-  }
+  console.log('Push notifications disabled - push_tokens table removed');
+  return;
 }
 
 /**
  * Send notification to all users of a specific type
+ * Note: Push tokens table removed - this function is disabled
  */
 export async function sendNotificationToUserType(
   userType: 'student' | 'expert' | 'admin' | 'all',
@@ -182,50 +108,9 @@ export async function sendNotificationToUserType(
   body: string,
   data?: any
 ) {
-  try {
-    let query = supabase
-      .from('push_tokens')
-      .select('push_token, user_id, profiles!inner(type)');
+  console.log('Push notifications disabled - push_tokens table removed');
+  return;
 
-    if (userType !== 'all') {
-      query = query.eq('profiles.type', userType);
-    }
-
-    const { data: tokens, error } = await query;
-
-    if (error) {
-      console.error('Error fetching push tokens:', error);
-      return;
-    }
-
-    if (!tokens || tokens.length === 0) {
-      console.log('No push tokens found');
-      return;
-    }
-
-    const messages = tokens.map((tokenData) => ({
-      to: tokenData.push_token,
-      sound: 'default',
-      title,
-      body,
-      data: data || {},
-    }));
-
-    const response = await fetch('https://exp.host/--/api/v2/push/send', {
-      method: 'POST',
-      headers: {
-        Accept: 'application/json',
-        'Accept-encoding': 'gzip, deflate',
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(messages),
-    });
-
-    const result = await response.json();
-    console.log('✅ Push notifications sent to', userType, ':', result);
-  } catch (error) {
-    console.error('Error sending push notifications:', error);
-  }
 }
 
 /**
