@@ -12,15 +12,15 @@ interface SessionRequest {
   id: string; // auto generated UUID
   student_id: string; // uuid
   student_name: string;
-  student_registration_number: string;
-  student_email: string;
-  student_course: string;
+  student_registration_number: string | null;
+student_email: string | null;
+student_course: string | null;
+notes: string | null;
   session_date: string;
   session_time: string;
   booking_mode: 'online' | 'offline';
   status: 'pending' | 'approved' | 'rejected';
   updated_at: string;
-  notes: string;
   expert_name: string;
   expert_registration_number: string;
   expert_id: string; // uuid
@@ -96,7 +96,7 @@ export default function ExpertClientPage() {
           student_id: session.student_id,
           expert_id: session.expert_id,
           student_name: session.student_name || 'Unknown Student',
-          student_registration_number: session.student_registration_number || 'N/A',
+          student_registration_number: session.student_registration_number ?? 'N/A',
           student_email: session.student_email || '',
           student_course: session.student_course || 'N/A',
           session_date: session.session_date || '',
