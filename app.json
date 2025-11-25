@@ -33,12 +33,16 @@
         "WRITE_EXTERNAL_STORAGE",
         "CAMERA",
         "android.permission.RECORD_AUDIO",
-        "android.permission.MODIFY_AUDIO_SETTINGS"
+        "android.permission.MODIFY_AUDIO_SETTINGS",
+        "android.permission.POST_NOTIFICATIONS",
+        "android.permission.RECEIVE_BOOT_COMPLETED",
+        "android.permission.VIBRATE"
       ],
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/logo2.png",
         "backgroundColor": "#ffffff"
       },
+      "useNextNotificationsApi": true,
       "intentFilters": [
         {
           "action": "VIEW",
@@ -76,7 +80,10 @@
         "expo-notifications",
         {
           "icon": "./assets/images/logo2.png",
-          "color": "#FFB347"
+          "color": "#FFB347",
+          "mode": "production",
+          "androidMode": "default",
+          "androidCollapsedTitle": "C.A.L.M Space"
         }
       ],
       "expo-audio",

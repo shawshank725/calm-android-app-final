@@ -7,6 +7,8 @@ import { ChatMessage } from '@/types/Message';
 import { useProfile } from '@/api/Profile';
 import { useAuth } from '@/providers/AuthProvider';
 import { RefreshConfig } from '@/constants/RefreshConfig';
+import { sendLocalNotification } from '@/lib/notificationService';
+import { notifyNewMessage } from '@/lib/backgroundNotifications';
 
 
 
@@ -343,7 +345,7 @@ export default function Chat() {
     if (!profile || !resolvedParticipantId) return;
 
     const channel = supabase
-      .channel('chat_messages')
+      .channel(`chat_messages_${profile.id}_${resolvedParticipantId}`)
       .on(
         'postgres_changes',
         {
@@ -353,17 +355,30 @@ export default function Chat() {
           filter: `or(and(sender_id.eq.${resolvedParticipantId},receiver_id.eq.${profile.id}),and(sender_id.eq.${profile.id},receiver_id.eq.${resolvedParticipantId}))`,
         },
         (payload) => {
+          console.log('New message received in chat:', payload);
           const newMessage = payload.new as ChatMessage;
           setChatMessages(prev => {
             const exists = prev.some(msg => msg.id === newMessage.id);
             if (exists) return prev;
-            return [...prev, newMessage];
+            const updated = [...prev, newMessage];
+            // Auto-scroll immediately
+            setTimeout(() => {
+              flatListRef.current?.scrollToEnd({ animated: true });
+            }, 50);
+            return updated;
           });
 
-          // If the incoming message is from the participant, mark them online briefly
+          // If the incoming message is from the participant, mark them online briefly and send notification
           if (newMessage.sender_id === resolvedParticipantId) {
             setParticipantOnline(true);
             setParticipantLastSeen(null);
+
+            // Send local notification
+            sendLocalNotification(
+              newMessage.sender_name || 'New Message',
+              newMessage.message.substring(0, 100),
+              { type: 'chat', senderId: newMessage.sender_id }
+            ).catch((err: any) => console.error('Notification error:', err));
 
             if (onlineTimeoutRef.current) clearTimeout(onlineTimeoutRef.current);
             onlineTimeoutRef.current = setTimeout(() => {
@@ -371,10 +386,6 @@ export default function Chat() {
               setParticipantLastSeen(formatTime(newMessage.created_at));
             }, 90 * 1000);
           }
-
-          setTimeout(() => {
-            flatListRef.current?.scrollToEnd({ animated: true });
-          }, 100);
         }
       )
       .subscribe();
@@ -437,6 +448,16 @@ export default function Chat() {
         }
         Alert.alert('Error', 'Failed to send message');
         return;
+      }
+
+      // Send background push notification
+      if (data) {
+        notifyNewMessage(
+          resolvedParticipantId,
+          profile.name || 'Student',
+          textToSend,
+          profile.id
+        ).catch(err => console.error('Background notification failed:', err));
       }
 
       if (data && tempId) {

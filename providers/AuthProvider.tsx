@@ -17,15 +17,21 @@ export default function AuthProvider({children}: PropsWithChildren) {
 
     useEffect(() => {
         const fetchSession = async() => {
-            const {data, error} = await supabase.auth.getSession();
-            setSession(data.session);
-            setLoading(false);
+            try {
+                const {data, error} = await supabase.auth.getSession();
+                setSession(data.session);
+                setLoading(false);
+            } catch (err) {
+                console.error('Error fetching session:', err);
+                setLoading(false);
+            }
         };
         fetchSession();
         
         const { data: authListener } = supabase.auth.onAuthStateChange(async (_event, session) => {
+            console.log('Auth state changed:', _event);
             setSession(session);
-            if (_event === 'INITIAL_SESSION') {
+            if (_event === 'INITIAL_SESSION' || _event === 'SIGNED_IN') {
                 setLoading(false);
             }
         });

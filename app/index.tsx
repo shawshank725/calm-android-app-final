@@ -77,23 +77,48 @@ export default function FrontPage() {
       if (!loading && session && session.user?.id && !isRedirecting) {
         setIsRedirecting(true);
         try {
-          const { data, error } = await supabase.from('profiles').select('*').eq('id', session.user.id).single();
-          if (error) {
-            Toast.show({ type: 'error', text1: 'Failed to fetch profile', position: 'top' });
+          // Retry logic for new accounts where profile might not be immediately available
+          let data = null;
+          let error = null;
+          let retryCount = 0;
+          const maxRetries = 2; // Reduced from 3 to 2 for faster experience
+          
+          while (retryCount < maxRetries && !data) {
+            const result = await supabase.from('profiles').select('*').eq('id', session.user.id).single();
+            data = result.data;
+            error = result.error;
+            
+            if (error && retryCount < maxRetries - 1) {
+              console.log(`Profile not found, retrying... (${retryCount + 1}/${maxRetries})`);
+              await new Promise(resolve => setTimeout(resolve, 200)); // Reduced to 200ms
+              retryCount++;
+            } else {
+              break;
+            }
+          }
+          
+          if (error || !data) {
+            console.error('Profile fetch error:', error);
+            Toast.show({ 
+              type: 'error', 
+              text1: 'Profile not found', 
+              text2: 'Please try logging in again',
+              position: 'top' 
+            });
             setIsRedirecting(false);
+            // Sign out and let user try again
+            await supabase.auth.signOut();
             return;
           }
           
-          // Show loading screen for 2 seconds before redirecting
-          setTimeout(() => {
-            if (data.type === 'STUDENT' || data.type === 'PEER') {
-              router.replace('/student/student-home');
-            } else if (data.type === 'EXPERT') {
-              router.replace('/expert/expert-home');
-            } else {
-              router.replace('/admin/admin-home');
-            }
-          }, 2000);
+          // Immediate redirect - no artificial delay
+          if (data.type === 'STUDENT' || data.type === 'PEER') {
+            router.replace('/student/student-home');
+          } else if (data.type === 'EXPERT') {
+            router.replace('/expert/expert-home');
+          } else {
+            router.replace('/admin/admin-home');
+          }
         } catch (err) {
           console.error('Redirect error:', err);
           setIsRedirecting(false);
@@ -121,9 +146,22 @@ export default function FrontPage() {
           .from('profiles')
           .select('email')
           .eq('registration_number', loginInput)
-          .single();
+          .maybeSingle(); // Use maybeSingle for better performance
         
-        if (profileError || !profileData) {
+        if (profileError) {
+          console.error('Profile lookup error:', profileError);
+          Toast.show({ 
+            type: 'error', 
+            text1: 'Login error', 
+            text2: 'Please check your credentials',
+            position: 'top', 
+            visibilityTime: 2000 
+          });
+          setIsLoading(false);
+          return;
+        }
+        
+        if (!profileData) {
           Toast.show({ 
             type: 'error', 
             text1: 'Registration number not found', 

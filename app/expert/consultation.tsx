@@ -14,6 +14,7 @@ import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/providers/AuthProvider';
 import { useProfile } from '@/api/Profile';
 import { ChatMessage, GroupedConversation } from '@/types/Message';
+import { sendLocalNotification } from '@/lib/notificationService';
 
 interface Student {
     id: string; // uuid
@@ -55,7 +56,7 @@ export default function ConsultationPage() {
         if (!profile) return;
 
         const channel = supabase
-            .channel(`expert_messages_${profile}`)
+            .channel(`expert_messages_${profile.id}`)
             .on(
                 'postgres_changes',
                 {
@@ -72,11 +73,39 @@ export default function ConsultationPage() {
                         if (exists) return prev;
                         const updatedMessages = [newMessage, ...prev];
 
-                        // Update grouped conversations
+                        // Update grouped conversations immediately
                         const grouped = groupMessagesBySender(updatedMessages);
                         setGroupedConversations(grouped);
 
+                        // Send notification for new message
+                        sendLocalNotification(
+                            newMessage.sender_name || 'New Message',
+                            newMessage.message.substring(0, 100),
+                            { type: 'consultation', senderId: newMessage.sender_id }
+                        ).catch((err: any) => console.error('Notification error:', err));
+
                         return updatedMessages;
+                    });
+                }
+            )
+            .on(
+                'postgres_changes',
+                {
+                    event: 'UPDATE',
+                    schema: 'public',
+                    table: 'messages',
+                    filter: `receiver_id=eq.${profile.id}`,
+                },
+                (payload: any) => {
+                    console.log('Message updated:', payload);
+                    const updatedMessage = payload.new as ChatMessage;
+                    setMessages(prev => {
+                        const updated = prev.map(msg => 
+                            msg.id === updatedMessage.id ? updatedMessage : msg
+                        );
+                        const grouped = groupMessagesBySender(updated);
+                        setGroupedConversations(grouped);
+                        return updated;
                     });
                 }
             )

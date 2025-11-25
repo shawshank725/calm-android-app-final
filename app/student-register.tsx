@@ -304,6 +304,9 @@ export default function StudentRegister() {
 
       console.log('Profile created successfully');
 
+      // Wait a moment to ensure profile is fully committed to database
+      await new Promise(resolve => setTimeout(resolve, 150)); // Reduced to 150ms
+
       // Step 4: Sign in the user
       const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({ 
         email, 

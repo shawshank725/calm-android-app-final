@@ -7,6 +7,7 @@ import { Conversation, ReceivedMessage } from '@/types/Message';
 import { useProfile } from '@/api/Profile';
 import { useAuth } from '@/providers/AuthProvider';
 import { RefreshConfig } from '@/constants/RefreshConfig';
+import { sendLocalNotification } from '@/lib/notificationService';
 
 // Profile pictures for chat participants
 const profilePics = [
@@ -114,7 +115,7 @@ export default function MessagesPage() {
     if (!profile) return;
 
     const channel = supabase
-      .channel('conversations')
+      .channel(`conversations_${profile.id}`)
       .on(
         'postgres_changes',
         {
@@ -125,6 +126,7 @@ export default function MessagesPage() {
         },
         (payload) => {
           console.log('New message in conversation:', payload);
+          // Reload immediately for real-time update
           loadSentMessages();
           loadConversations();
         }

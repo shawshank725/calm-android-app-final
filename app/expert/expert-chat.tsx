@@ -5,6 +5,8 @@ import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/providers/AuthProvider';
 import { useProfile } from '@/api/Profile';
 import { ChatMessage } from '@/types/Message';
+import { sendLocalNotification } from '@/lib/notificationService';
+import { notifyNewMessage } from '@/lib/backgroundNotifications';
 
 
 export default function ExpertChatPage() {
@@ -53,6 +55,15 @@ export default function ExpertChatPage() {
                         if (exists) return prev;
                         return [...prev, newMessage];
                     });
+
+                    // Send notification if message is from student
+                    if (newMessage.sender_id === studentProfile?.id) {
+                        sendLocalNotification(
+                            newMessage.sender_name || 'Student Message',
+                            newMessage.message.substring(0, 100),
+                            { type: 'expert_chat', senderId: newMessage.sender_id }
+                        ).catch(err => console.error('Notification error:', err));
+                    }
 
                     // Auto-scroll to bottom when new message arrives
                     setTimeout(() => {
@@ -151,6 +162,14 @@ export default function ExpertChatPage() {
                 setTimeout(() => {
                     flatListRef.current?.scrollToEnd({ animated: true });
                 }, 100);
+
+                // Send background push notification
+                notifyNewMessage(
+                    studentProfile.id,
+                    profile.name || 'Expert',
+                    newMessage.trim(),
+                    profile.id
+                ).catch(err => console.error('Background notification failed:', err));
             }
 
             setNewMessage('');

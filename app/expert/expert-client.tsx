@@ -69,7 +69,7 @@ export default function ExpertClientPage() {
     };
   }, [profile]);
 
-  const loadPatients = async () => {
+  const loadSessionRequests = async () => {
     setLoading(true);
     try {
       if (!profile) {
@@ -120,8 +120,6 @@ export default function ExpertClientPage() {
     }
   };
 
-  const loadSessionRequests = loadPatients;
-
   const handleSearch = (text: string) => {
     setSearchQuery(text);
     if (!text.trim()) {
@@ -140,7 +138,7 @@ export default function ExpertClientPage() {
 
   const onRefresh = async () => {
     setRefreshing(true);
-    await loadPatients();
+    await loadSessionRequests();
     setRefreshing(false);
   };
 
@@ -207,7 +205,7 @@ export default function ExpertClientPage() {
               }
 
               Alert.alert('✅ Success', 'Session approved and booked successfully!');
-              await loadPatients();
+              await loadSessionRequests();
             } catch (err) {
               console.error('Error:', err);
               Alert.alert('Error', 'An error occurred. Please try again.');
@@ -274,7 +272,7 @@ export default function ExpertClientPage() {
                 }
 
                 Alert.alert('Success', 'Session rejected and slot freed.');
-                await loadPatients();
+                await loadSessionRequests();
               }
             } catch (err) {
               console.error('Error:', err);
@@ -339,7 +337,7 @@ export default function ExpertClientPage() {
                 }
 
                 Alert.alert('Success', 'Session request deleted and slot freed.');
-                await loadPatients();
+                await loadSessionRequests();
               }
             } catch (err) {
               console.error('Error:', err);
@@ -723,6 +721,9 @@ const styles = StyleSheet.create({
   loadingContainer: {
     alignItems: 'center',
     padding: 40,
+    backgroundColor: '#fff',
+    borderRadius: 15,
+    marginVertical: 10,
   },
   loadingText: {
     marginTop: 10,
@@ -732,6 +733,9 @@ const styles = StyleSheet.create({
   emptyContainer: {
     alignItems: 'center',
     padding: 40,
+    backgroundColor: '#fff',
+    borderRadius: 15,
+    marginVertical: 10,
   },
   emptyTitle: {
     fontSize: 18,
