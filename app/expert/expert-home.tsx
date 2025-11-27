@@ -1337,7 +1337,7 @@ export default function ExpertHome() {
                   key={index}
                   style={{
                     width: 45,
-                    height: 55,
+                    height: 50,
                     alignItems: 'center',
                     justifyContent: 'center',
                     margin: 3,

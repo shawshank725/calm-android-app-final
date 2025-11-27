@@ -1494,7 +1494,7 @@ export default function StudentHome() {
       <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', width: '100%', paddingHorizontal: 0, backgroundColor: Colors.backgroundLight, borderRadius: 20, margin: 10, paddingVertical: 20, borderWidth: 1, borderColor: Colors.border }}>
         {/* Most selected emoji display */}
         <View style={{ marginBottom: 16, alignItems: 'center' }}>
-          <Text style={{ color: Colors.text, fontSize: 50, fontWeight: 'bold', textShadowColor: 'rgba(0,0,0,0.50)', textShadowOffset: { width: 2, height: 2 }, textShadowRadius: 4 }}>
+          <Text style={{ color: Colors.text, fontSize: 40, fontWeight: 'bold', textShadowColor: 'rgba(0,0,0,0.50)', textShadowOffset: { width: 2, height: 2 }, textShadowRadius: 4 }}>
             Mood Calendar
           </Text>
           <Text style={{ color: Colors.primary, fontSize: 20, fontWeight: 'bold', textShadowColor: 'rgba(0,0,0,0.30)', textShadowOffset: { width: 1, height: 1 }, textShadowRadius: 2 }}>
@@ -1576,8 +1576,8 @@ export default function StudentHome() {
               <TouchableOpacity
                 key={index}
                 style={{ 
-                  width: 50, 
-                  height: 60, 
+                  width: 45, 
+                  height: 55, 
                   alignItems: 'center', 
                   justifyContent: 'center', 
                   margin: 4, 
