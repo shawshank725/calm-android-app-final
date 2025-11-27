@@ -2106,9 +2106,14 @@ export default function ExpertHome() {
       </Modal>
 
       {/* Mood Modal */}
-      <Modal visible={moodModalVisible} animationType="slide" transparent={true}>
-        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: Colors.primaryOverlay }}>
-          <KeyboardAvoidingView
+         <Modal visible={moodModalVisible} animationType="slide" transparent={true} onRequestClose={() => setMoodModalVisible(false)}>
+        <TouchableOpacity 
+          style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: Colors.primaryOverlay }}
+          activeOpacity={1}
+          onPress={() => setMoodModalVisible(false)}
+        >
+          <TouchableOpacity activeOpacity={1} onPress={(e) => e.stopPropagation()}>
+            <KeyboardAvoidingView
             behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
             style={{ backgroundColor: Colors.white, borderRadius: 25, padding: 30, alignItems: 'center', width: 360, shadowColor: Colors.shadow, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 10, borderWidth: 2, borderColor: Colors.accent }}
           >
@@ -2179,7 +2184,8 @@ export default function ExpertHome() {
               ))}
             </View>
           </KeyboardAvoidingView>
-        </View>
+          </TouchableOpacity>
+        </TouchableOpacity>
       </Modal>
 
       {/* Notification Modal */}
